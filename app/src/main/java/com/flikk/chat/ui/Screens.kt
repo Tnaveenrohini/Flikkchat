@@ -1,6 +1,13 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -163,14 +170,20 @@ fun LoginScreen(onDone: () -> Unit) {
 }
 
 @Composable
-private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = Pink, focusedLabelColor = Pink, cursorColor = Pink,
 )
 
 // ---------------- Home (chats list) ----------------
 
 @Composable
-fun HomeScreen(openChat: (String) -> Unit, openContacts: () -> Unit, openProfile: () -> Unit) {
+fun HomeScreen(
+    openChat: (String) -> Unit,
+    openContacts: () -> Unit,
+    openProfile: () -> Unit,
+    openNewGroup: () -> Unit,
+    openStarred: () -> Unit,
+) {
     val ctx = LocalContext.current
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(Unit) {
@@ -184,12 +197,46 @@ fun HomeScreen(openChat: (String) -> Unit, openContacts: () -> Unit, openProfile
         value = withContext(Dispatchers.IO) { Chat.db.chats() }
     }
 
+    var searching by remember { mutableStateOf(false) }
+    var q by remember { mutableStateOf("") }
+    var menu by remember { mutableStateOf(false) }
+    val results by produceState(initialValue = emptyList<Msg>(), q, version) {
+        value = if (q.isBlank()) emptyList() else withContext(Dispatchers.IO) { Chat.db.search(q.trim()) }
+    }
+    BackHandler(enabled = searching) { searching = false; q = "" }
+
     Scaffold(
         containerColor = Color.Black,
         topBar = {
-            Header(title = "Flikkchat", actions = {
-                IconButton(onClick = openProfile) { Icon(Icons.Filled.Person, "Profile") }
-            })
+            if (searching) {
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().height(60.dp).padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { searching = false; q = "" }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                    TextField(
+                        value = q, onValueChange = { q = it }, placeholder = { Text("Search...") },
+                        singleLine = true, modifier = Modifier.weight(1f),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Black, unfocusedContainerColor = Color.Black,
+                            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+                            cursorColor = Pink,
+                        ),
+                    )
+                }
+            } else {
+                Header(title = "Flikkchat", actions = {
+                    IconButton(onClick = { searching = true }) { Icon(Icons.Filled.Search, "Search") }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menu") }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(text = { Text("New group") }, onClick = { menu = false; openNewGroup() })
+                            DropdownMenuItem(text = { Text("Starred messages") }, onClick = { menu = false; openStarred() })
+                            DropdownMenuItem(text = { Text("Profile") }, onClick = { menu = false; openProfile() })
+                        }
+                    }
+                })
+            }
         },
         floatingActionButton = {
             FloatingActionButton(onClick = openContacts, containerColor = Pink, contentColor = Color.White) {
@@ -197,7 +244,25 @@ fun HomeScreen(openChat: (String) -> Unit, openContacts: () -> Unit, openProfile
             }
         },
     ) { pad ->
-        if (chats.isEmpty()) {
+        if (searching) {
+            val names = chats.filter { q.isNotBlank() && it.name.contains(q.trim(), ignoreCase = true) }
+            LazyColumn(Modifier.fillMaxSize().padding(pad)) {
+                if (names.isNotEmpty()) item { SectionLabel("Chats") }
+                items(names, key = { "c" + it.peer }) { c -> ChatListItem(c) { openChat(c.peer) } }
+                if (results.isNotEmpty()) item { SectionLabel("Messages") }
+                items(results, key = { "m" + it.id }) { m ->
+                    Column(
+                        Modifier.fillMaxWidth().clickable { openChat(m.peer) }.padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Row {
+                            Text(Chat.db.peer(m.peer)?.name ?: "", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text(listTime(m.ts), fontSize = 12.sp, color = Muted)
+                        }
+                        Text(m.text, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        } else if (chats.isEmpty()) {
             Column(
                 Modifier.fillMaxSize().padding(pad).padding(32.dp),
                 verticalArrangement = Arrangement.Center,
@@ -213,6 +278,12 @@ fun HomeScreen(openChat: (String) -> Unit, openContacts: () -> Unit, openProfile
             }
         }
     }
+}
+
+@Composable
+fun SectionLabel(t: String) {
+    Text(t, color = Pink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 4.dp))
 }
 
 @Composable
@@ -247,7 +318,7 @@ private fun ChatListItem(c: ChatRow, onClick: () -> Unit) {
 // ---------------- Contacts ----------------
 
 @Composable
-fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit) {
+fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup: () -> Unit) {
     val ctx = LocalContext.current
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED)
@@ -285,6 +356,16 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit) {
     ) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad)) {
             item {
+                Row(
+                    Modifier.fillMaxWidth().clickable { openNewGroup() }.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(48.dp).clip(CircleShape).background(Pink), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Groups, null, tint = Color.White)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text("New group", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                }
                 Row(
                     Modifier.fillMaxWidth().clickable { invite() }.padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -331,125 +412,6 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit) {
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-// ---------------- Chat ----------------
-
-@Composable
-fun ChatScreen(peer: String, onBack: () -> Unit) {
-    val version by Chat.db.changes.collectAsState()
-    val msgs by produceState(initialValue = emptyList<Msg>(), peer, version) {
-        value = withContext(Dispatchers.IO) { Chat.db.messages(peer) }
-    }
-    val local by produceState(initialValue = Chat.db.peer(peer), version) { value = Chat.db.peer(peer) }
-    val state by Chat.peerState(peer).collectAsState(initial = null)
-
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { delay(1000); now = System.currentTimeMillis() } }
-
-    DisposableEffect(peer) {
-        Chat.openChat = peer
-        onDispose { if (Chat.openChat == peer) Chat.openChat = null }
-    }
-    LaunchedEffect(version) { withContext(Dispatchers.IO) { Chat.markRead(peer) } }
-
-    val name = local?.name?.takeIf { it.isNotBlank() } ?: state?.name ?: "Chat"
-    val subtitle = state?.let { s ->
-        when {
-            s.typingTo == Chat.me && now - s.typingAt < Chat.TYPING_WINDOW_MS -> "typing..."
-            now - s.lastActive < Chat.ONLINE_WINDOW_MS -> "online"
-            else -> lastSeen(s.lastActive)
-        }
-    }
-
-    var text by remember { mutableStateOf("") }
-    val listState = rememberLazyListState()
-    LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) listState.animateScrollToItem(0) }
-
-    Column(Modifier.fillMaxSize().background(Color.Black).imePadding()) {
-        Header(title = name, subtitle = subtitle, onBack = onBack, leading = { Avatar(name, 40.dp) })
-        HorizontalDivider(color = Line)
-
-        val reversed = remember(msgs) { msgs.asReversed() }
-        LazyColumn(
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp),
-            state = listState,
-            reverseLayout = true,
-        ) {
-            items(reversed.size, key = { reversed[it].id }) { i ->
-                val m = reversed[i]
-                val older = reversed.getOrNull(i + 1)
-                Column {
-                    if (older == null || dayLabel(older.ts) != dayLabel(m.ts)) DayChip(dayLabel(m.ts))
-                    Bubble(m)
-                }
-            }
-        }
-
-        Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            TextField(
-                value = text,
-                onValueChange = { text = it; if (it.isNotEmpty()) Chat.typing(peer) },
-                placeholder = { Text("Message") },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(26.dp),
-                maxLines = 5,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Surface, unfocusedContainerColor = Surface,
-                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                    cursorColor = Pink,
-                ),
-            )
-            Spacer(Modifier.width(8.dp))
-            FloatingActionButton(
-                onClick = { Chat.send(peer, text); text = "" },
-                containerColor = Pink, contentColor = Color.White,
-                shape = CircleShape, modifier = Modifier.size(54.dp),
-            ) { Icon(Icons.AutoMirrored.Filled.Send, "Send") }
-        }
-    }
-}
-
-@Composable
-private fun DayChip(label: String) {
-    Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-        Text(
-            label, fontSize = 12.sp, color = Muted,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Surface).padding(horizontal = 10.dp, vertical = 4.dp),
-        )
-    }
-}
-
-@Composable
-private fun Bubble(m: Msg) {
-    Box(
-        Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        contentAlignment = if (m.fromMe) Alignment.CenterEnd else Alignment.CenterStart,
-    ) {
-        Column(
-            Modifier
-                .widthIn(max = 300.dp)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 16.dp, topEnd = 16.dp,
-                        bottomStart = if (m.fromMe) 16.dp else 4.dp,
-                        bottomEnd = if (m.fromMe) 4.dp else 16.dp,
-                    )
-                )
-                .background(if (m.fromMe) BubbleMe else BubbleThem)
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
-            Text(m.text, fontSize = 15.sp, color = Color.White)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(clock(m.ts), fontSize = 11.sp, color = Muted)
-                if (m.fromMe) { Spacer(Modifier.width(4.dp)); Ticks(m.status, 15.dp) }
             }
         }
     }

@@ -16,7 +16,13 @@ service cloud.firestore {
 
     // Postman: message pampadam (sender), teeskovadam + delete (receiver matrame)
     match /inbox/{uid}/msgs/{id} {
-      allow create: if request.auth != null && request.resource.data.from == request.auth.uid;
+      allow create, update: if request.auth != null && request.resource.data.from == request.auth.uid;
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Photo / video / voice chunks (deliver ayyaka delete)
+    match /inbox/{uid}/chunks/{id} {
+      allow create, update: if request.auth != null && request.resource.data.from == request.auth.uid;
       allow read, delete: if request.auth != null && request.auth.uid == uid;
     }
 
@@ -24,6 +30,21 @@ service cloud.firestore {
     match /inbox/{uid}/receipts/{id} {
       allow create, update: if request.auth != null && request.resource.data.by == request.auth.uid;
       allow read, delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Groups: members matrame chudagalaru
+    match /groups/{gid} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.members;
+      allow create: if request.auth != null
+        && request.auth.uid in request.resource.data.members
+        && request.resource.data.admins == [request.auth.uid];
+      // Admin: add / remove. Member: tanu tane exit avvachu.
+      allow update: if request.auth != null && (
+        request.auth.uid in resource.data.admins ||
+        (request.auth.uid in resource.data.members
+          && request.resource.data.members == resource.data.members.removeAll([request.auth.uid])
+          && request.resource.data.name == resource.data.name)
+      );
     }
   }
 }

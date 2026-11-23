@@ -1,6 +1,7 @@
 package com.flikk.chat.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -67,6 +68,7 @@ fun Header(
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
     leading: (@Composable () -> Unit)? = null,
+    onTitleClick: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
@@ -83,6 +85,8 @@ fun Header(
         } else {
             Box(Modifier.padding(start = 12.dp))
         }
+        val click = if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier
+        Row(Modifier.weight(1f).then(click), verticalAlignment = Alignment.CenterVertically) {
         if (leading != null) {
             leading()
             Box(Modifier.padding(start = 10.dp))
@@ -90,17 +94,22 @@ fun Header(
         androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
             Text(title, fontSize = if (onBack == null && leading == null) 24.sp else 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             if (!subtitle.isNullOrEmpty()) {
-                Text(subtitle, fontSize = 12.sp, color = if (subtitle == "typing...") Pink else Muted, maxLines = 1)
+                Text(subtitle, fontSize = 12.sp, color = if (subtitle == "typing...") Pink else Muted, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
+        }
         }
         actions()
     }
 }
 
+private val palette = listOf(Pink, Color(0xFF7C4DFF), Color(0xFF00BFA5), Color(0xFFFF9100), Color(0xFF2979FF))
+
+fun avatarColor(name: String): Color = palette[Math.floorMod(name.hashCode(), palette.size)]
+
 @Composable
 fun Avatar(name: String, size: Dp = 48.dp) {
-    val palette = listOf(Pink, Color(0xFF7C4DFF), Color(0xFF00BFA5), Color(0xFFFF9100), Color(0xFF2979FF))
-    val c = palette[Math.floorMod(name.hashCode(), palette.size)]
+    val c = avatarColor(name)
     Box(
         Modifier.size(size).clip(CircleShape).background(c.copy(alpha = 0.25f)),
         contentAlignment = Alignment.Center,
@@ -156,4 +165,9 @@ fun lastSeen(ts: Long): String {
         sameDay(ts, now - 86_400_000L) -> "last seen yesterday at ${clock(ts)}"
         else -> "last seen " + SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()).format(Date(ts))
     }
+}
+
+fun duration(ms: Long): String {
+    val s = (ms / 1000).toInt()
+    return "%d:%02d".format(s / 60, s % 60)
 }

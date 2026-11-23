@@ -16,6 +16,13 @@ Made in India 🇮🇳 chat app, from the [Flikk](https://github.com/Tnaveenrohi
 - Notifications (while the app is running in the background)
 - Profile (name, about)
 
+## Phase 2 features
+- 📷 Photos & 🎥 videos (up to 16 MB). Sent as small chunks through Firestore and deleted after delivery, so it stays free (no Firebase Storage needed)
+- 🎤 Voice messages
+- 👥 Group chats: create, add/remove members (admin), exit group
+- ↩️ Reply, ↪ forward, 🗑 delete for me / delete for everyone, copy
+- 🔍 Search chats & messages, ⭐ starred messages
+
 ## Setup
 1. Add `app/google-services.json` from the Firebase console (package `com.flikk.chat`).
 2. Firebase → Authentication → enable **Anonymous**.
