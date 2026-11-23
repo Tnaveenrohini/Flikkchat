@@ -185,6 +185,7 @@ object Calls {
             _state.value = CallState(id, from, video, outgoing = false, phase = Phase.INCOMING)
             watchCall(id, isCaller = false)
             showIncomingNotification(from, video)
+            startRinging()
             timeout = scope.launch {
                 delay(RING_TIMEOUT)
                 if (_state.value?.phase == Phase.INCOMING) end("Missed call", missed = true)
@@ -196,6 +197,7 @@ object Calls {
         val st = _state.value ?: return
         if (st.phase != Phase.INCOMING) return
         cancelNotification()
+        stopRinging()
         _state.value = st.copy(phase = Phase.CONNECTING, speaker = st.video)
         scope.launch {
             try {
@@ -413,11 +415,14 @@ object Calls {
         if (st.phase == Phase.ENDED) return
         timeout?.cancel()
         cancelNotification()
+        stopRinging()
         if (remoteState != null) {
             scope.launch { try { call().document(st.id).set(mapOf("state" to remoteState), SetOptions.merge()).await() } catch (_: Exception) {} }
         }
         val dur = if (st.connectedAt > 0) System.currentTimeMillis() - st.connectedAt else 0L
-        Chat.db.logCall(CallLog(st.id, st.peer, st.outgoing, st.video, startedAt, dur, missed || (!st.outgoing && st.connectedAt == 0L)))
+        // Meeru decline chesthe missed kaadu
+        val wasMissed = missed || (!st.outgoing && st.connectedAt == 0L && reason != "Declined")
+        Chat.db.logCall(CallLog(st.id, st.peer, st.outgoing, st.video, startedAt, dur, wasMissed))
         if (missed) showMissedNotification(st.peer, st.video)
 
         regs.forEach { it.remove() }; regs.clear()
@@ -441,6 +446,38 @@ object Calls {
             delay(1500)
             if (_state.value?.id == st.id) _state.value = null
         }
+    }
+
+    // ---------------- Ringtone ----------------
+
+    private var ringtone: android.media.Ringtone? = null
+    private var vibrator: android.os.Vibrator? = null
+
+    private fun startRinging() {
+        try {
+            val am = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (am.ringerMode == AudioManager.RINGER_MODE_NORMAL) {
+                ringtone = RingtoneManager.getRingtone(app, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))?.apply {
+                    if (Build.VERSION.SDK_INT >= 28) isLooping = true
+                    play()
+                }
+            }
+            if (am.ringerMode != AudioManager.RINGER_MODE_SILENT) {
+                @Suppress("DEPRECATION")
+                val v = if (Build.VERSION.SDK_INT >= 31)
+                    (app.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager).defaultVibrator
+                else app.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+                v.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 800, 1000), 0))
+                vibrator = v
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun stopRinging() {
+        try { ringtone?.stop() } catch (_: Exception) {}
+        ringtone = null
+        try { vibrator?.cancel() } catch (_: Exception) {}
+        vibrator = null
     }
 
     // ---------------- Notifications ----------------

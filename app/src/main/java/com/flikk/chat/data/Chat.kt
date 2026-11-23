@@ -465,6 +465,16 @@ object Chat {
         val ref = d.reference
 
         // Delete for everyone
+        if (type == "sdel") {
+            val target = d.getString("target")
+            val st = target?.let { db.status(it) }
+            if (st != null && st.owner == from) {
+                if (st.media.isNotEmpty()) File(st.media).delete()
+                db.deleteStatus(st.id)
+            }
+            try { ref.delete().await() } catch (_: Exception) {}
+            return
+        }
         if (type == "del") {
             val target = d.getString("target")
             val local = target?.let { db.msg(it) }
@@ -776,6 +786,8 @@ object Chat {
     fun deleteMyStatus(st: StatusItem) {
         if (st.media.isNotEmpty()) File(st.media).delete()
         db.deleteStatus(st.id)
+        // Andari phones nunchi kuda teeseyi
+        sendTo(statusAudience(), mapOf("type" to "sdel", "target" to st.id))
     }
 
     /** Vere vaalla status chusinappudu — vaallaki "seen" pampu */

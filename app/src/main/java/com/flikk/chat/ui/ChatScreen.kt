@@ -1,6 +1,8 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
@@ -787,7 +789,7 @@ private fun AttachSheet(
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)).background(BubbleThem)
-                .clickable(enabled = false) {}
+                .pointerInput(Unit) { detectTapGestures { } }
                 .navigationBarsPadding().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 34.dp),
         ) {
             Box(Modifier.align(Alignment.CenterHorizontally).size(40.dp, 5.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFFD6D4E0)))

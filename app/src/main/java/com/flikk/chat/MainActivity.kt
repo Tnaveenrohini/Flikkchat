@@ -80,11 +80,12 @@ class MainActivity : FragmentActivity() {
     companion object {
         const val EXTRA_PEER = "peer"
         private const val LOCK_AFTER_MS = 60_000L
+        /** Process lo okkasari unlock chesthe chalu (activity recreate ayina malli adagadu) */
+        private var unlockedAt = 0L
     }
 
     private var stack by mutableStateOf(listOf<Screen>())
     private var locked by mutableStateOf(false)
-    private var firstStart = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -182,13 +183,14 @@ class MainActivity : FragmentActivity() {
         super.onStart()
         // App lock: modatisari open chesinappudu / 1 nimisham kanna ekkuva background lo unte
         if (Chat.loggedIn && Chat.flag("app_lock", false)) {
-            val away = Chat.backgroundAt > 0 && System.currentTimeMillis() - Chat.backgroundAt > LOCK_AFTER_MS
-            if (firstStart || away) {
-                locked = true
-                unlock()
+            val away = Chat.backgroundAt > unlockedAt && System.currentTimeMillis() - Chat.backgroundAt > LOCK_AFTER_MS
+            if (unlockedAt == 0L || away) {
+                if (!locked) {
+                    locked = true
+                    unlock()
+                }
             }
         }
-        firstStart = false
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -201,10 +203,14 @@ class MainActivity : FragmentActivity() {
         if (BiometricManager.from(this).canAuthenticate(auth) != BiometricManager.BIOMETRIC_SUCCESS) {
             // Phone lo screen lock ledu — lock cheyyalem
             locked = false
+            unlockedAt = System.currentTimeMillis()
             return
         }
         val prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { locked = false }
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                locked = false
+                unlockedAt = System.currentTimeMillis()
+            }
         })
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Flikkchat unlock")
