@@ -267,6 +267,19 @@ object Chat {
 
     suspend fun safetyCode(uid: String): String? = pubOf(uid)?.let { Crypto.safetyCode(it) }
 
+    // ---------- Favourites ----------
+
+    private fun favSet(): Set<String> = prefs.getStringSet("favs", emptySet()) ?: emptySet()
+    fun isFav(peer: String) = peer in favSet()
+    /** true = ippudu favourite */
+    fun toggleFav(peer: String): Boolean {
+        val s = favSet().toMutableSet()
+        val now = if (peer in s) { s -= peer; false } else { s += peer; true }
+        prefs.edit().putStringSet("favs", s).apply()
+        db.bump()
+        return now
+    }
+
     // ---------- Block ----------
 
     private fun blockedSet(): Set<String> = prefs.getStringSet("blocked", emptySet()) ?: emptySet()

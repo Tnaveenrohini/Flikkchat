@@ -34,6 +34,10 @@ Made in India 🇮🇳 chat app, from the [Flikk](https://github.com/Tnaveenrohi
 - 📞 Voice & 📹 video calls (WebRTC, peer-to-peer, Firestore signaling), call log, lock-screen incoming call
   - Optional TURN server: add Firestore doc `config/turn` with `urls` (array), `username`, `credential` when calls fail on some mobile networks
 
+## Design
+- Light theme from the Flikkchat design (indigo `#4B2FE0`, Plus Jakarta Sans), floating dark bottom nav: Chats · Updates · Groups · Calls
+- Font: Plus Jakarta Sans (SIL Open Font License), downloaded during the CI build
+
 ## Setup
 1. Add `app/google-services.json` from the Firebase console (package `com.flikk.chat`).
 2. Firebase → Authentication → enable **Anonymous**.

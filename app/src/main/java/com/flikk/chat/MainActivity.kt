@@ -14,6 +14,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
+import com.flikk.chat.ui.CallPickerScreen
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -45,6 +47,7 @@ sealed class Screen {
     data class Viewer(val path: String) : Screen()
     data object StatusText : Screen()
     data class StatusView(val owner: String) : Screen()
+    data class CallPick(val video: Boolean) : Screen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -57,7 +60,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Light design: status bar lo dark icons
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+        )
         stack = listOf(
             when {
                 !Chat.ready -> Screen.Setup
@@ -89,6 +96,7 @@ class MainActivity : ComponentActivity() {
                         openStarred = { push(Screen.Starred) },
                         openStatusText = { push(Screen.StatusText) },
                         openStatusViewer = { push(Screen.StatusView(it)) },
+                        openCallPicker = { push(Screen.CallPick(it)) },
                     )
                     Screen.Contacts -> ContactsScreen(
                         onBack = ::pop,
@@ -116,6 +124,7 @@ class MainActivity : ComponentActivity() {
                     is Screen.Viewer -> ImageViewer(path = current.path, onBack = ::pop)
                     Screen.StatusText -> TextStatusScreen(onDone = ::pop)
                     is Screen.StatusView -> StatusViewer(owner = current.owner, onDone = ::pop)
+                    is Screen.CallPick -> CallPickerScreen(video = current.video, onBack = ::pop)
                 }
             }
         }

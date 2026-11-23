@@ -115,7 +115,7 @@ fun SetupScreen() {
     ) {
         Avatar("F", 84.dp)
         Spacer(Modifier.height(20.dp))
-        Text("Flikkchat", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Pink)
+        Brand(32.sp)
         Spacer(Modifier.height(16.dp))
         Text(
             "Firebase setup inka avvaledu.\n\ngoogle-services.json file ni repo lo app/ folder lo pettandi, " +
@@ -139,8 +139,8 @@ fun LoginScreen(onDone: () -> Unit) {
         Modifier.fillMaxSize().statusBarsPadding().imePadding().padding(28.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("Flikkchat", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Pink)
-        Text("Made in India 🇮🇳 chat", color = Muted)
+        Brand(36.sp)
+        Text("Made in India 🇮🇳 chat", color = Muted, fontSize = 15.sp)
         Spacer(Modifier.height(36.dp))
         OutlinedTextField(
             value = name, onValueChange = { name = it },
@@ -157,7 +157,7 @@ fun LoginScreen(onDone: () -> Unit) {
         )
         if (error != null) {
             Spacer(Modifier.height(10.dp))
-            Text(error!!, color = Color(0xFFFF6B6B), fontSize = 13.sp)
+            Text(error!!, color = Danger, fontSize = 13.sp)
         }
         Spacer(Modifier.height(24.dp))
         Button(
@@ -172,8 +172,8 @@ fun LoginScreen(onDone: () -> Unit) {
             },
             enabled = !busy && name.isNotBlank() && phone.count { it.isDigit() } >= 10,
             modifier = Modifier.fillMaxWidth().height(52.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Pink),
-            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Accent),
+            shape = RoundedCornerShape(26.dp),
         ) {
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
             else Text("Continue", fontSize = 16.sp)
@@ -188,177 +188,13 @@ fun LoginScreen(onDone: () -> Unit) {
 
 @Composable
 fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Pink, focusedLabelColor = Pink, cursorColor = Pink,
+    focusedBorderColor = Accent, focusedLabelColor = Accent, cursorColor = Accent,
 )
-
-// ---------------- Home (chats list) ----------------
-
-@Composable
-fun HomeScreen(
-    openChat: (String) -> Unit,
-    openContacts: () -> Unit,
-    openProfile: () -> Unit,
-    openNewGroup: () -> Unit,
-    openStarred: () -> Unit,
-    openStatusText: () -> Unit,
-    openStatusViewer: (String) -> Unit,
-) {
-    val ctx = LocalContext.current
-    var tab by rememberSaveable { mutableIntStateOf(0) }
-    val caller = rememberCaller()
-    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-    }
-
-    val version by Chat.db.changes.collectAsState()
-    val chats by produceState(initialValue = emptyList<ChatRow>(), version) {
-        value = withContext(Dispatchers.IO) { Chat.db.chats() }
-    }
-
-    var searching by remember { mutableStateOf(false) }
-    var q by remember { mutableStateOf("") }
-    var menu by remember { mutableStateOf(false) }
-    val results by produceState(initialValue = emptyList<Msg>(), q, version) {
-        value = if (q.isBlank()) emptyList() else withContext(Dispatchers.IO) { Chat.db.search(q.trim()) }
-    }
-    BackHandler(enabled = searching) { searching = false; q = "" }
-
-    Scaffold(
-        containerColor = Color.Black,
-        topBar = {
-            if (searching) {
-                Row(
-                    Modifier.fillMaxWidth().statusBarsPadding().height(60.dp).padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { searching = false; q = "" }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
-                    TextField(
-                        value = q, onValueChange = { q = it }, placeholder = { Text("Search...") },
-                        singleLine = true, modifier = Modifier.weight(1f),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Black, unfocusedContainerColor = Color.Black,
-                            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                            cursorColor = Pink,
-                        ),
-                    )
-                }
-            } else Column {
-                Header(title = "Flikkchat", actions = {
-                    IconButton(onClick = { searching = true }) { Icon(Icons.Filled.Search, "Search") }
-                    Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menu") }
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(text = { Text("New group") }, onClick = { menu = false; openNewGroup() })
-                            DropdownMenuItem(text = { Text("Starred messages") }, onClick = { menu = false; openStarred() })
-                            DropdownMenuItem(text = { Text("Profile") }, onClick = { menu = false; openProfile() })
-                        }
-                    }
-                })
-                TabRow(
-                    selectedTabIndex = tab, containerColor = Color.Black, contentColor = Pink,
-                    indicator = { pos ->
-                        TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(pos[tab]), color = Pink)
-                    },
-                    divider = { HorizontalDivider(color = Line) },
-                ) {
-                    listOf("Chats", "Status", "Calls").forEachIndexed { i, t ->
-                        Tab(
-                            selected = tab == i, onClick = { tab = i },
-                            text = { Text(t, fontWeight = FontWeight.SemiBold) },
-                            selectedContentColor = Pink, unselectedContentColor = Muted,
-                        )
-                    }
-                }
-            }
-        },
-        floatingActionButton = {
-            if (!searching && tab == 0) {
-                FloatingActionButton(onClick = openContacts, containerColor = Pink, contentColor = Color.White) {
-                    Icon(Icons.AutoMirrored.Filled.Message, "New chat")
-                }
-            } else if (!searching && tab == 2) {
-                FloatingActionButton(onClick = openContacts, containerColor = Pink, contentColor = Color.White) {
-                    Icon(Icons.Filled.AddIcCall, "New call")
-                }
-            }
-        },
-    ) { pad ->
-        if (searching) {
-            val names = chats.filter { q.isNotBlank() && it.name.contains(q.trim(), ignoreCase = true) }
-            LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-                if (names.isNotEmpty()) item { SectionLabel("Chats") }
-                items(names, key = { "c" + it.peer }) { c -> ChatListItem(c) { openChat(c.peer) } }
-                if (results.isNotEmpty()) item { SectionLabel("Messages") }
-                items(results, key = { "m" + it.id }) { m ->
-                    Column(
-                        Modifier.fillMaxWidth().clickable { openChat(m.peer) }.padding(horizontal = 16.dp, vertical = 10.dp)
-                    ) {
-                        Row {
-                            Text(Chat.db.peer(m.peer)?.name ?: "", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Text(listTime(m.ts), fontSize = 12.sp, color = Muted)
-                        }
-                        Text(m.text, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            }
-        } else if (tab == 1) {
-            Box(Modifier.fillMaxSize().padding(pad)) { StatusTab(openText = openStatusText, openViewer = openStatusViewer) }
-        } else if (tab == 2) {
-            Box(Modifier.fillMaxSize().padding(pad)) { CallsTab(caller) }
-        } else if (chats.isEmpty()) {
-            Column(
-                Modifier.fillMaxSize().padding(pad).padding(32.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("Inka chats levu", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                Text("Kinda pink button nokki friends tho chat start cheyyandi 💬", color = Muted, textAlign = TextAlign.Center)
-            }
-        } else {
-            LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-                items(chats, key = { it.peer }) { c -> ChatListItem(c) { openChat(c.peer) } }
-            }
-        }
-    }
-}
 
 @Composable
 fun SectionLabel(t: String) {
-    Text(t, color = Pink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 4.dp))
-}
-
-@Composable
-private fun ChatListItem(c: ChatRow, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Avatar(c.name)
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(c.name, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 1,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Text(listTime(c.lastTs), fontSize = 12.sp, color = if (c.unread > 0) Pink else Muted)
-            }
-            Spacer(Modifier.height(3.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (c.lastFromMe) { Ticks(c.lastStatus); Spacer(Modifier.width(4.dp)) }
-                Text(c.lastText, color = Muted, fontSize = 14.sp, maxLines = 1,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                if (c.unread > 0) {
-                    Box(
-                        Modifier.clip(CircleShape).background(Pink).padding(horizontal = 7.dp, vertical = 2.dp),
-                    ) { Text(c.unread.toString(), fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold) }
-                }
-            }
-        }
-    }
+    Text(t.uppercase(), color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp,
+        modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp))
 }
 
 // ---------------- Contacts ----------------
@@ -390,7 +226,7 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
     }
 
     Scaffold(
-        containerColor = Color.Black,
+        containerColor = Bg,
         topBar = {
             Header(
                 title = "Select contact",
@@ -406,7 +242,7 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
                     Modifier.fillMaxWidth().clickable { openNewGroup() }.padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(48.dp).clip(CircleShape).background(Pink), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(48.dp).clip(CircleShape).background(Accent), contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.Groups, null, tint = Color.White)
                     }
                     Spacer(Modifier.width(14.dp))
@@ -416,7 +252,7 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
                     Modifier.fillMaxWidth().clickable { invite() }.padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(48.dp).clip(CircleShape).background(Pink), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(48.dp).clip(CircleShape).background(Accent), contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.PersonAdd, null, tint = Color.White)
                     }
                     Spacer(Modifier.width(14.dp))
@@ -430,12 +266,12 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
                         Text("Friends ni chudataniki contacts permission kavali", color = Muted, textAlign = TextAlign.Center)
                         Spacer(Modifier.height(12.dp))
                         Button(onClick = { launcher.launch(Manifest.permission.READ_CONTACTS) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Pink)) { Text("Allow") }
+                            colors = ButtonDefaults.buttonColors(containerColor = Accent)) { Text("Allow") }
                     }
                 }
                 loading -> item {
                     Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Pink)
+                        CircularProgressIndicator(color = Accent)
                     }
                 }
                 contacts.isNullOrEmpty() -> item {
@@ -502,7 +338,7 @@ fun ProfileScreen(onBack: () -> Unit) {
             text = { Text("Ippudu phone lo unna chats backup file lo unna chats tho replace avutayi. App restart avutundi.", color = Muted) },
             confirmButton = {
                 TextButton(onClick = { askRestore = false; importLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
-                    Text("Choose file", color = Pink)
+                    Text("Choose file", color = Accent)
                 }
             },
             dismissButton = { TextButton(onClick = { askRestore = false }) { Text("Cancel", color = Muted) } },
@@ -510,7 +346,7 @@ fun ProfileScreen(onBack: () -> Unit) {
         )
     }
 
-    Column(Modifier.fillMaxSize().background(Color.Black).imePadding()) {
+    Column(Modifier.fillMaxSize().background(Bg).imePadding()) {
         Header(title = "Profile", onBack = onBack)
         Column(
             Modifier.padding(24.dp).verticalScroll(rememberScrollState()).navigationBarsPadding(),
@@ -536,8 +372,8 @@ fun ProfileScreen(onBack: () -> Unit) {
                 },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Pink),
-                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                shape = RoundedCornerShape(26.dp),
             ) { Text("Save") }
             if (msg != null) { Spacer(Modifier.height(10.dp)); Text(msg!!, color = Muted) }
 
@@ -554,67 +390,16 @@ fun ProfileScreen(onBack: () -> Unit) {
                 Button(
                     onClick = { exportLauncher.launch("Flikkchat-backup-" + java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date()) + ".zip") },
                     enabled = !busy, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Pink), shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent), shape = RoundedCornerShape(12.dp),
                 ) { Text("Backup") }
                 Spacer(Modifier.width(10.dp))
                 Button(
                     onClick = { askRestore = true },
                     enabled = !busy, modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = Surface), shape = RoundedCornerShape(12.dp),
-                ) { Text("Restore", color = Color.White) }
+                ) { Text("Restore", color = Ink) }
             }
             if (backupMsg != null) { Spacer(Modifier.height(10.dp)); Text(backupMsg!!, color = Muted) }
-        }
-    }
-}
-
-// ---------------- Calls tab ----------------
-
-@Composable
-fun CallsTab(caller: (String, Boolean) -> Unit) {
-    val version by Chat.db.changes.collectAsState()
-    val calls by produceState(initialValue = emptyList<CallLog>(), version) {
-        value = withContext(Dispatchers.IO) { Chat.db.calls() }
-    }
-    if (calls.isEmpty()) {
-        Column(
-            Modifier.fillMaxSize().padding(32.dp),
-            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("📞", fontSize = 40.sp)
-            Spacer(Modifier.height(8.dp))
-            Text("Inka calls levu. Chat lo paina 📞 / 📹 nokki call cheyyandi.", color = Muted, textAlign = TextAlign.Center)
-        }
-        return
-    }
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(calls, key = { it.id }) { c ->
-            val name = Chat.nameOf(c.peer)
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Avatar(name)
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
-                        color = if (c.missed) Color(0xFFFF6B6B) else Color.White)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            if (c.outgoing) Icons.Filled.CallMade else Icons.Filled.CallReceived, null,
-                            tint = if (c.missed) Color(0xFFFF6B6B) else Color(0xFF22C55E), modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            listTime(c.ts) + if (c.dur > 0) " · ${duration(c.dur)}" else "",
-                            color = Muted, fontSize = 13.sp,
-                        )
-                    }
-                }
-                IconButton(onClick = { caller(c.peer, c.video) }) {
-                    Icon(if (c.video) Icons.Filled.Videocam else Icons.Filled.Call, "Call", tint = Pink)
-                }
-            }
         }
     }
 }

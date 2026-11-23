@@ -1,6 +1,11 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.ui.graphics.Brush
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -122,34 +127,49 @@ fun CallScreen(st: CallState) {
         if (res.values.all { it }) Calls.accept()
         else { Toast.makeText(ctx, "Call ki permission kavali", Toast.LENGTH_LONG).show(); Calls.decline() }
     }
+    val status = when (st.phase) {
+        Phase.OUTGOING -> "Calling…"
+        Phase.INCOMING -> if (st.video) "Incoming video call" else "Incoming voice call"
+        Phase.CONNECTING -> "Connecting…"
+        Phase.CONNECTED -> "Encrypted · " + duration(now - st.connectedAt)
+        Phase.ENDED -> st.endReason
+    }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFF0B0B0F))) {
+    Box(Modifier.fillMaxSize().background(Ink)) {
         val r = remote
         val showRemote = st.video && r != null && st.phase == Phase.CONNECTED
         if (showRemote && r != null) {
             VideoView(r, mirror = false, overlay = false, modifier = Modifier.fillMaxSize())
+        } else {
+            // Voice call / inka connect avvaledu: peda avatar
+            Column(
+                Modifier.fillMaxSize().background(Color(0xFF241E3D)),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+            ) {
+                Avatar(name, 128.dp)
+                Spacer(Modifier.height(22.dp))
+                Text(name, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Spacer(Modifier.height(6.dp))
+                Text(status, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                    color = if (st.phase == Phase.ENDED) Color(0xFFFCA5A5) else Color(0xFFD9D3F5))
+                Spacer(Modifier.height(120.dp))
+            }
         }
 
-        Column(
-            Modifier.fillMaxWidth().statusBarsPadding().padding(top = if (showRemote) 16.dp else 70.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (!showRemote) {
-                Avatar(name, 120.dp)
-                Spacer(Modifier.height(20.dp))
-            }
-            Text(name, fontSize = if (showRemote) 20.sp else 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Spacer(Modifier.height(6.dp))
-            val sub = when (st.phase) {
-                Phase.OUTGOING -> "Calling..."
-                Phase.INCOMING -> if (st.video) "📹 Incoming video call" else "📞 Incoming voice call"
-                Phase.CONNECTING -> "Connecting..."
-                Phase.CONNECTED -> duration(now - st.connectedAt)
-                Phase.ENDED -> st.endReason
-            }
-            Text(sub, color = if (st.phase == Phase.ENDED) Pink else Muted, fontSize = 15.sp)
-            if (st.phase != Phase.INCOMING && st.phase != Phase.ENDED) {
-                Text("🔒 End-to-end encrypted", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        // Paina bar (video lo)
+        if (showRemote) {
+            Box(
+                Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Ink.copy(alpha = 0.8f), Color.Transparent)))
+                    .statusBarsPadding().padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 40.dp),
+            ) {
+                Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Lock, null, tint = Color(0xFFD9D3F5), modifier = Modifier.size(11.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(status, fontSize = 12.sp, color = Color(0xFFD9D3F5))
+                    }
+                }
             }
         }
 
@@ -158,52 +178,68 @@ fun CallScreen(st: CallState) {
         if (st.video && l != null && !st.cameraOff && st.phase != Phase.INCOMING && st.phase != Phase.ENDED) {
             VideoView(
                 l, mirror = true, overlay = true,
-                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)
-                    .size(width = 110.dp, height = 160.dp).clip(RoundedCornerShape(14.dp)),
+                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 92.dp, end = 16.dp)
+                    .size(width = 112.dp, height = 160.dp).clip(RoundedCornerShape(22.dp))
+                    .border(2.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(22.dp)),
             )
         }
 
-        Row(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 40.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            when (st.phase) {
-                Phase.INCOMING -> {
-                    RoundBtn(Icons.Filled.CallEnd, Red, "Decline", big = true) { Calls.decline() }
-                    RoundBtn(if (st.video) Icons.Filled.Videocam else Icons.Filled.Call, Green, "Accept", big = true) {
-                        if (Calls.hasPermissions(st.video)) Calls.accept()
-                        else acceptLauncher.launch(
-                            if (st.video) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
-                            else arrayOf(Manifest.permission.RECORD_AUDIO)
-                        )
-                    }
+        when (st.phase) {
+            Phase.INCOMING -> Row(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 56.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                BigBtn(Icons.Filled.CallEnd, EndRed, "Decline") { Calls.decline() }
+                BigBtn(if (st.video) Icons.Filled.Videocam else Icons.Filled.Call, Color(0xFF16A34A), "Accept") {
+                    if (Calls.hasPermissions(st.video)) Calls.accept()
+                    else acceptLauncher.launch(
+                        if (st.video) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+                        else arrayOf(Manifest.permission.RECORD_AUDIO)
+                    )
                 }
-                Phase.ENDED -> {}
-                else -> {
-                    RoundBtn(if (st.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (st.muted) Color.White else Color(0x33FFFFFF),
-                        "Mute", iconTint = if (st.muted) Color.Black else Color.White) { Calls.toggleMute() }
-                    RoundBtn(Icons.AutoMirrored.Filled.VolumeUp, if (st.speaker) Color.White else Color(0x33FFFFFF),
-                        "Speaker", iconTint = if (st.speaker) Color.Black else Color.White) { Calls.toggleSpeaker() }
-                    if (st.video) {
-                        RoundBtn(if (st.cameraOff) Icons.Filled.VideocamOff else Icons.Filled.Videocam, Color(0x33FFFFFF), "Camera") { Calls.toggleCamera() }
-                        RoundBtn(Icons.Filled.Cameraswitch, Color(0x33FFFFFF), "Switch") { Calls.switchCamera() }
-                    }
-                    RoundBtn(Icons.Filled.CallEnd, Red, "End") { Calls.hangup() }
+            }
+            Phase.ENDED -> {}
+            else -> Row(
+                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 26.dp)
+                    .fillMaxWidth().clip(RoundedCornerShape(34.dp)).background(Ink.copy(alpha = 0.78f))
+                    .padding(horizontal = 12.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (st.video) {
+                    CtrlBtn(Icons.Filled.Cameraswitch, "Flip camera") { Calls.switchCamera() }
+                    CtrlBtn(if (st.cameraOff) Icons.Filled.VideocamOff else Icons.Filled.Videocam,
+                        if (st.cameraOff) "Turn camera on" else "Turn camera off", active = st.cameraOff) { Calls.toggleCamera() }
+                } else {
+                    CtrlBtn(Icons.AutoMirrored.Filled.VolumeUp, "Speaker", active = st.speaker) { Calls.toggleSpeaker() }
                 }
+                CtrlBtn(if (st.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (st.muted) "Unmute" else "Mute microphone", active = st.muted) { Calls.toggleMute() }
+                Box(
+                    Modifier.size(width = 72.dp, height = 56.dp).clip(RoundedCornerShape(28.dp)).background(EndRed)
+                        .clickable { Calls.hangup() },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Filled.CallEnd, "End call", tint = Color.White, modifier = Modifier.size(26.dp)) }
             }
         }
     }
 }
 
 @Composable
-private fun RoundBtn(
-    icon: ImageVector, bg: Color, label: String, big: Boolean = false,
-    iconTint: Color = Color.White, onClick: () -> Unit,
-) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(if (big) 72.dp else 58.dp),
-        colors = IconButtonDefaults.iconButtonColors(containerColor = bg),
-    ) { Icon(icon, label, tint = iconTint, modifier = Modifier.size(if (big) 34.dp else 26.dp)) }
+private fun CtrlBtn(icon: ImageVector, label: String, active: Boolean = false, onClick: () -> Unit) {
+    Box(
+        Modifier.size(56.dp).clip(CircleShape).background(if (active) Color.White else Color.White.copy(alpha = 0.14f)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, label, tint = if (active) Ink else Color.White, modifier = Modifier.size(23.dp)) }
+}
+
+@Composable
+private fun BigBtn(icon: ImageVector, bg: Color, label: String, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(72.dp).clip(CircleShape).background(bg).clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(32.dp)) }
+        Spacer(Modifier.height(8.dp))
+        Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
 }

@@ -1,6 +1,10 @@
 package com.flikk.chat.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -77,7 +81,7 @@ private fun PickRow(name: String, sub: String, checked: Boolean, onClick: () -> 
             Avatar(name)
             if (checked) {
                 Box(
-                    Modifier.align(Alignment.BottomEnd).size(20.dp).clip(CircleShape).background(Pink),
+                    Modifier.align(Alignment.BottomEnd).size(20.dp).clip(CircleShape).background(Accent),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
             }
@@ -102,7 +106,7 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
     val contacts by produceState<List<Contact>?>(initialValue = null) { value = Chat.findContacts() }
 
     Scaffold(
-        containerColor = Color.Black,
+        containerColor = Bg,
         topBar = {
             Header(title = "New group", subtitle = if (picked.isEmpty()) "Members select cheyyandi" else "${picked.size} selected", onBack = onBack)
         },
@@ -118,7 +122,7 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
                             if (peer != null) onCreated(peer) else error = "Group create avvaledu. Internet / Firestore rules check cheyyandi"
                         }
                     },
-                    containerColor = Pink, contentColor = Color.White,
+                    containerColor = Accent, contentColor = Color.White,
                 ) {
                     if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
                     else Icon(Icons.Filled.Check, "Create")
@@ -133,13 +137,13 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
                     label = { Text("Group name") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(16.dp), colors = fieldColors(),
                 )
-                error?.let { Text(it, color = Color(0xFFFF6B6B), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                error?.let { Text(it, color = Danger, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 SectionLabel("Contacts")
             }
             val list = contacts
             when {
                 list == null -> item {
-                    Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Pink) }
+                    Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }
                 }
                 list.isEmpty() -> item {
                     Text("Flikkchat lo inka contacts levu", color = Muted, modifier = Modifier.padding(16.dp))
@@ -176,7 +180,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit) {
 
     if (adding && g != null) {
         Scaffold(
-            containerColor = Color.Black,
+            containerColor = Bg,
             topBar = { Header(title = "Add members", subtitle = "${toAdd.size} selected", onBack = { adding = false; toAdd = emptySet() }) },
             floatingActionButton = {
                 if (toAdd.isNotEmpty()) FloatingActionButton(
@@ -185,7 +189,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit) {
                         adding = false; toAdd = emptySet()
                         scope.launch { Chat.addMembers(gid, list) }
                     },
-                    containerColor = Pink, contentColor = Color.White,
+                    containerColor = Accent, contentColor = Color.White,
                 ) { Icon(Icons.Filled.Check, "Add") }
             },
         ) { pad ->
@@ -193,7 +197,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit) {
             LazyColumn(Modifier.fillMaxSize().padding(pad)) {
                 when {
                     list == null -> item {
-                        Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Pink) }
+                        Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }
                     }
                     list.isEmpty() -> item { Text("Add cheyyadaniki inka contacts levu", color = Muted, modifier = Modifier.padding(16.dp)) }
                     else -> items(list, key = { it.uid }) { c ->
@@ -207,65 +211,77 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit) {
         return
     }
 
-    Scaffold(containerColor = Color.Black, topBar = { Header(title = "Group info", onBack = onBack) }) { pad ->
-        if (g == null) {
-            Box(Modifier.fillMaxSize().padding(pad), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Pink) }
-            return@Scaffold
+    val media by produceState(initialValue = emptyList<Msg>(), version) {
+        value = withContext(Dispatchers.IO) {
+            Chat.db.messages("g:$gid").filter { it.type == "image" && it.media.isNotEmpty() && !it.deleted }.takeLast(4).reversed()
         }
-        LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-            item {
-                Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Avatar(g.name, 96.dp)
-                    Spacer(Modifier.height(12.dp))
-                    Text(g.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    Text("Group · ${g.members.size} members", color = Muted)
+    }
+    if (g == null) {
+        Box(Modifier.fillMaxSize().background(ChatBg), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize().background(ChatBg)) {
+        item {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 12.dp, top = 14.dp)) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp))
                 }
-                HorizontalDivider(color = Line)
-                if (iAmAdmin) {
+            }
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Avatar(g.name, 104.dp, rounded = 36.dp)
+                Spacer(Modifier.height(14.dp))
+                Text(g.name, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, color = Ink)
+                Text("Group · ${g.members.size} members", color = Muted, fontSize = 14.sp)
+            }
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoTile(Icons.AutoMirrored.Filled.Chat, "Message", Modifier.weight(1f), onClick = onBack)
+                if (iAmAdmin) InfoTile(Icons.Filled.PersonAdd, "Add", Modifier.weight(1f)) { adding = true }
+                if (iAmMember) InfoTile(Icons.AutoMirrored.Filled.ExitToApp, "Exit", Modifier.weight(1f), tint = Danger) { askLeave = true }
+            }
+            if (media.isNotEmpty()) {
+                Column(
+                    Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                        .background(Bg).padding(14.dp),
+                ) {
+                    Text("Media", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        media.forEach { m ->
+                            AsyncImage(
+                                model = File(m.media), contentDescription = "Photo", contentScale = ContentScale.Crop,
+                                modifier = Modifier.weight(1f).height(70.dp).clip(RoundedCornerShape(12.dp)),
+                            )
+                        }
+                        repeat(4 - media.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+            Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Bg).padding(vertical = 6.dp)) {
+                Text("${g.members.size} members", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted,
+                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
+                g.members.sortedBy { if (it == me) "" else Chat.nameOf(it).lowercase() }.forEach { uid ->
+                    val n = if (uid == me) "You" else Chat.nameOf(uid)
                     Row(
-                        Modifier.fillMaxWidth().clickable { adding = true }.padding(horizontal = 16.dp, vertical = 12.dp),
+                        Modifier.fillMaxWidth()
+                            .clickable(enabled = iAmAdmin && uid != me) { removeWho = uid }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(Modifier.size(48.dp).clip(CircleShape).background(Pink), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.PersonAdd, null, tint = Color.White)
+                        Avatar(if (uid == me) Chat.myName else n, 42.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(n, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Ink)
+                            Chat.db.peer(uid)?.phone?.takeIf { it.isNotEmpty() && uid != me }?.let { Text(it, color = Muted, fontSize = 12.sp) }
                         }
-                        Spacer(Modifier.width(14.dp))
-                        Text("Add members", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                    }
-                }
-                SectionLabel("${g.members.size} members")
-            }
-            items(g.members.sortedBy { if (it == me) "" else Chat.nameOf(it).lowercase() }, key = { it }) { uid ->
-                val n = Chat.nameOf(uid)
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clickable(enabled = iAmAdmin && uid != me) { removeWho = uid }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Avatar(n)
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(n, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                        Chat.db.peer(uid)?.phone?.takeIf { it.isNotEmpty() && uid != me }?.let { Text(it, color = Muted, fontSize = 13.sp) }
-                    }
-                    if (uid in g.admins) {
-                        Text("Admin", color = Pink, fontSize = 12.sp,
-                            modifier = Modifier.clip(CircleShape).background(Pink.copy(alpha = 0.15f)).padding(horizontal = 8.dp, vertical = 3.dp))
+                        if (uid in g.admins) {
+                            Text("Admin", color = AccentDeep, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AccentSoft).padding(horizontal = 8.dp, vertical = 4.dp))
+                        }
                     }
                 }
             }
-            if (iAmMember) item {
-                HorizontalDivider(color = Line)
-                Row(
-                    Modifier.fillMaxWidth().clickable { askLeave = true }.padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ExitToApp, null, tint = Color(0xFFFF6B6B))
-                    Spacer(Modifier.width(14.dp))
-                    Text("Exit group", color = Color(0xFFFF6B6B), fontSize = 16.sp)
-                }
-            }
+            Spacer(Modifier.height(24.dp))
+            Box(Modifier.navigationBarsPadding())
         }
     }
 
@@ -274,7 +290,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit) {
             onDismissRequest = { removeWho = null },
             title = { Text("Remove ${Chat.nameOf(uid)}?") },
             confirmButton = {
-                TextButton(onClick = { removeWho = null; scope.launch { Chat.removeMember(gid, uid) } }) { Text("Remove", color = Pink) }
+                TextButton(onClick = { removeWho = null; scope.launch { Chat.removeMember(gid, uid) } }) { Text("Remove", color = Accent) }
             },
             dismissButton = { TextButton(onClick = { removeWho = null }) { Text("Cancel", color = Muted) } },
             containerColor = Surface,
@@ -285,11 +301,26 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit) {
             onDismissRequest = { askLeave = false },
             title = { Text("Exit \"${g?.name}\"?") },
             confirmButton = {
-                TextButton(onClick = { askLeave = false; scope.launch { Chat.leaveGroup(gid) } }) { Text("Exit", color = Pink) }
+                TextButton(onClick = { askLeave = false; scope.launch { Chat.leaveGroup(gid) } }) { Text("Exit", color = Accent) }
             },
             dismissButton = { TextButton(onClick = { askLeave = false }) { Text("Cancel", color = Muted) } },
             containerColor = Surface,
         )
+    }
+}
+
+@Composable
+private fun InfoTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier,
+    tint: Color = Accent, onClick: () -> Unit,
+) {
+    Column(
+        modifier.height(72.dp).clip(RoundedCornerShape(18.dp)).background(Bg).clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(6.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
     }
 }
 
@@ -310,7 +341,7 @@ fun ForwardScreen(msgId: String, onDone: () -> Unit) {
         }
     }
     Scaffold(
-        containerColor = Color.Black,
+        containerColor = Bg,
         topBar = { Header(title = "Forward to...", subtitle = if (picked.isEmpty()) null else "${picked.size} selected", onBack = onDone) },
         floatingActionButton = {
             if (picked.isNotEmpty()) FloatingActionButton(
@@ -318,7 +349,7 @@ fun ForwardScreen(msgId: String, onDone: () -> Unit) {
                     Chat.db.msg(msgId)?.let { Chat.forward(it, picked.toList()) }
                     onDone()
                 },
-                containerColor = Pink, contentColor = Color.White,
+                containerColor = Accent, contentColor = Color.White,
             ) { Icon(Icons.AutoMirrored.Filled.Send, "Send") }
         },
     ) { pad ->
@@ -340,7 +371,7 @@ fun StarredScreen(onBack: () -> Unit, openChat: (String) -> Unit) {
     val list by produceState(initialValue = emptyList<Msg>(), version) {
         value = withContext(Dispatchers.IO) { Chat.db.starred() }
     }
-    Scaffold(containerColor = Color.Black, topBar = { Header(title = "Starred messages", onBack = onBack) }) { pad ->
+    Scaffold(containerColor = Bg, topBar = { Header(title = "Starred messages", onBack = onBack) }) { pad ->
         if (list.isEmpty()) {
             Column(
                 Modifier.fillMaxSize().padding(pad).padding(32.dp),

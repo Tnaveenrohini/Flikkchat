@@ -76,111 +76,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-val StatusColors = listOf(0xFFFF3D8B, 0xFF7C4DFF, 0xFF00897B, 0xFFEF6C00, 0xFF1E88E5, 0xFF43A047, 0xFF5D4037, 0xFF263238)
-
-@Composable
-private fun RingAvatar(name: String, unseen: Boolean, size: Dp = 52.dp) {
-    Box(
-        Modifier.size(size + 6.dp).border(2.5.dp, if (unseen) Pink else Muted.copy(alpha = 0.5f), CircleShape).padding(4.dp),
-        contentAlignment = Alignment.Center,
-    ) { Avatar(name, size - 2.dp) }
-}
-
-// ---------------- Status tab (Home lo) ----------------
-
-@Composable
-fun StatusTab(openText: () -> Unit, openViewer: (String) -> Unit) {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val version by Chat.db.changes.collectAsState()
-    val all by produceState(initialValue = emptyList<StatusItem>(), version) {
-        value = withContext(Dispatchers.IO) { Chat.purgeExpired(); Chat.db.statuses() }
-    }
-    val me = Chat.me
-    val mine = all.filter { it.owner == me }
-    val others = all.filter { it.owner != me && !Chat.isBlocked(it.owner) }.groupBy { it.owner }
-        .map { (owner, list) -> Triple(owner, list, list.any { !it.seen }) }
-        .sortedByDescending { it.second.maxOf { s -> s.ts } }
-    val recent = others.filter { it.third }
-    val viewed = others.filter { !it.third }
-
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) scope.launch {
-            Toast.makeText(ctx, "Status pedtunnam...", Toast.LENGTH_SHORT).show()
-            val err = Chat.postPhotoStatus(uri, "")
-            Toast.makeText(ctx, err ?: "Status pettesam ✅", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize()) {
-            item {
-                Row(
-                    Modifier.fillMaxWidth().clickable { if (mine.isNotEmpty()) openViewer(me ?: "") else openText() }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box {
-                        if (mine.isNotEmpty()) RingAvatar(Chat.myName, true) else Avatar(Chat.myName, 56.dp)
-                        if (mine.isEmpty()) Box(
-                            Modifier.align(Alignment.BottomEnd).size(22.dp).clip(CircleShape).background(Pink),
-                            contentAlignment = Alignment.Center,
-                        ) { Text("+", color = Color.White, fontWeight = FontWeight.Bold) }
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column {
-                        Text("My status", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                        Text(
-                            if (mine.isEmpty()) "Status pettadaniki tap cheyyandi" else "${mine.size} updates · ${listTime(mine.last().ts)}",
-                            color = Muted, fontSize = 13.sp,
-                        )
-                    }
-                }
-            }
-            if (recent.isNotEmpty()) item { SectionLabel("Recent updates") }
-            items(recent, key = { "r" + it.first }) { (owner, list, _) -> OwnerRow(owner, list, true) { openViewer(owner) } }
-            if (viewed.isNotEmpty()) item { SectionLabel("Viewed updates") }
-            items(viewed, key = { "v" + it.first }) { (owner, list, _) -> OwnerRow(owner, list, false) { openViewer(owner) } }
-            if (others.isEmpty()) item {
-                Text(
-                    "Mee contacts status pedithe ikkada kanipistundi. Status 24 hours tarvatha automatic ga pothundi.",
-                    color = Muted, fontSize = 13.sp, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(28.dp),
-                )
-            }
-            item { Spacer(Modifier.height(140.dp)) }
-        }
-        Column(
-            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            SmallFloatingActionButton(onClick = openText, containerColor = Surface, contentColor = Color.White) {
-                Icon(Icons.Filled.Edit, "Text status")
-            }
-            Spacer(Modifier.height(12.dp))
-            FloatingActionButton(
-                onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                containerColor = Pink, contentColor = Color.White,
-            ) { Icon(Icons.Filled.PhotoCamera, "Photo status") }
-        }
-    }
-}
-
-@Composable
-private fun OwnerRow(owner: String, list: List<StatusItem>, unseen: Boolean, onClick: () -> Unit) {
-    val name = Chat.nameOf(owner)
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RingAvatar(name, unseen)
-        Spacer(Modifier.width(14.dp))
-        Column {
-            Text(name, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            Text(listTime(list.maxOf { it.ts }), color = Muted, fontSize = 13.sp)
-        }
-    }
-}
+val StatusColors = listOf(0xFF4B2FE0, 0xFF7C4DFF, 0xFF00897B, 0xFFEF6C00, 0xFF1E88E5, 0xFF43A047, 0xFF5D4037, 0xFF263238)
 
 // ---------------- Text status ----------------
 
@@ -249,7 +145,7 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
     }
 
     Box(
-        Modifier.fillMaxSize().background(if (cur.type == "text") Color(cur.color.takeIf { it != 0L } ?: 0xFFFF3D8B) else Color.Black)
+        Modifier.fillMaxSize().background(if (cur.type == "text") Color(cur.color.takeIf { it != 0L } ?: 0xFF4B2FE0) else Color.Black)
             .pointerInput(cur.id) {
                 detectTapGestures(
                     onPress = { paused = true; tryAwaitRelease(); paused = false },
@@ -327,7 +223,7 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
                             }
                         }
                     },
-                    confirmButton = { TextButton(onClick = { showViews = false }) { Text("OK", color = Pink) } },
+                    confirmButton = { TextButton(onClick = { showViews = false }) { Text("OK", color = Accent) } },
                     containerColor = Surface,
                 )
             }

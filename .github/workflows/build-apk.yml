@@ -20,6 +20,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Download Plus Jakarta Sans font (OFL)
+        run: |
+          mkdir -p app/src/main/res/font
+          curl -fsSL -o app/src/main/res/font/plus_jakarta_sans.ttf "https://github.com/google/fonts/raw/main/ofl/plusjakartasans/PlusJakartaSans%5Bwght%5D.ttf"
+          ls -la app/src/main/res/font
+
       - name: Build APK
         run: |
           chmod +x ./gradlew
