@@ -207,7 +207,7 @@ fun RoundIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Stri
     ) { Icon(icon, label, tint = Ink, modifier = Modifier.size(22.dp)) }
 }
 
-private val palette = listOf(
+private val avatarPalette = listOf(
     Color(0xFFE7E3FF) to Color(0xFF3A20C2),
     Color(0xFFFFE4D6) to Color(0xFF9A3412),
     Color(0xFFD7F5EC) to Color(0xFF0F5E4A),
@@ -217,7 +217,7 @@ private val palette = listOf(
     Color(0xFFE5E7EB) to Color(0xFF374151),
 )
 
-private fun pair(name: String) = palette[Math.floorMod(name.hashCode(), palette.size)]
+private fun pair(name: String) = avatarPalette[Math.floorMod(name.hashCode(), avatarPalette.size)]
 
 /** Peru nunchi text color (group lo sender name) */
 fun avatarColor(name: String): Color = pair(name).second
