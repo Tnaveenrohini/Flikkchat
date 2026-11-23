@@ -28,6 +28,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -119,8 +122,19 @@ object Chat {
         val phone = normalize(rawPhone) ?: return@withContext "Phone number correct ga ivvandi"
         if (name.isBlank()) return@withContext "Mee peru ivvandi"
         try {
-            val user = auth.currentUser ?: auth.signInAnonymously().await().user
+            val user = auth.currentUser ?: try {
+                withTimeout(20_000) { auth.signInAnonymously().await().user }
+            } catch (e: TimeoutCancellationException) {
+                return@withContext "Internet slow ga undi, malli try cheyyandi"
+            } catch (e: Exception) {
+                val m = e.message ?: ""
+                return@withContext if (m.contains("ADMIN_ONLY", true) || m.contains("disabled", true) || m.contains("CONFIGURATION_NOT_FOUND", true))
+                    "Firebase lo Authentication → Anonymous enable cheyyandi"
+                else "Login error: $m"
+            }
             val uid = user?.uid ?: return@withContext "Login fail ayyindi, malli try cheyyandi"
+            // Firestore database lekapothe write eppatiki complete avvadu — timeout pettam
+            val ok = withTimeoutOrNull(20_000) {
             fs.collection("users").document(uid).set(
                 mapOf(
                     "name" to name.trim(),
@@ -131,6 +145,9 @@ object Chat {
                 SetOptions.merge()
             ).await()
             fs.collection("phones").document(phone).set(mapOf("uid" to uid)).await()
+                true
+            }
+            if (ok == null) return@withContext "Server reach avvaledu. Firebase lo Firestore Database create chesara? (Internet kuda check cheyyandi)"
             prefs.edit()
                 .putString("name", name.trim())
                 .putString("phone", phone)
@@ -140,7 +157,8 @@ object Chat {
             start()
             null
         } catch (e: Exception) {
-            "Error: ${e.message ?: "network problem"}"
+            val m = e.message ?: "network problem"
+            if (m.contains("PERMISSION_DENIED", true)) "Firestore Rules publish cheyyandi (firestore.rules)" else "Error: $m"
         }
     }
 
