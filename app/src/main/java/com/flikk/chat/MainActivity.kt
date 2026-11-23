@@ -1,7 +1,15 @@
 package com.flikk.chat
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import com.flikk.chat.data.Calls
+import com.flikk.chat.ui.CallScreen
+import com.flikk.chat.ui.StatusViewer
+import com.flikk.chat.ui.TextStatusScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -35,6 +43,8 @@ sealed class Screen {
     data class GroupInfo(val gid: String) : Screen()
     data class Forward(val msgId: String) : Screen()
     data class Viewer(val path: String) : Screen()
+    data object StatusText : Screen()
+    data class StatusView(val owner: String) : Screen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -59,6 +69,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             FlikkTheme {
+                val call by Calls.state.collectAsState()
+                LaunchedEffect(call != null) { showOverLock(call != null) }
+                val active = call
+                if (active != null) {
+                    CallScreen(active)
+                    return@FlikkTheme
+                }
                 val current = stack.last()
                 BackHandler(enabled = stack.size > 1) { pop() }
                 when (current) {
@@ -70,6 +87,8 @@ class MainActivity : ComponentActivity() {
                         openProfile = { push(Screen.Profile) },
                         openNewGroup = { push(Screen.NewGroup) },
                         openStarred = { push(Screen.Starred) },
+                        openStatusText = { push(Screen.StatusText) },
+                        openStatusViewer = { push(Screen.StatusView(it)) },
                     )
                     Screen.Contacts -> ContactsScreen(
                         onBack = ::pop,
@@ -95,6 +114,8 @@ class MainActivity : ComponentActivity() {
                     is Screen.GroupInfo -> GroupInfoScreen(gid = current.gid, onBack = ::pop)
                     is Screen.Forward -> ForwardScreen(msgId = current.msgId, onDone = ::pop)
                     is Screen.Viewer -> ImageViewer(path = current.path, onBack = ::pop)
+                    Screen.StatusText -> TextStatusScreen(onDone = ::pop)
+                    is Screen.StatusView -> StatusViewer(owner = current.owner, onDone = ::pop)
                 }
             }
         }
@@ -109,6 +130,20 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         val peer = intent?.getStringExtra(EXTRA_PEER) ?: return
         if (Chat.loggedIn) stack = listOf(Screen.Home, Screen.Conversation(peer))
+    }
+
+    /** Incoming call — lock screen meeda kuda chupinchu */
+    private fun showOverLock(on: Boolean) {
+        if (Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(on)
+            setTurnScreenOn(on)
+        } else {
+            @Suppress("DEPRECATION")
+            if (on) window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+            else window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        }
+        if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     private fun push(s: Screen) { stack = stack + s }

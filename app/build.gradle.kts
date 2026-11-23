@@ -20,8 +20,10 @@ android {
         applicationId = "com.flikk.chat"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
+        // Phones ki matrame (APK size takkuva)
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     // Fixed key: kotha build paata app meedha update ga install avutundi.
@@ -77,6 +79,9 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-video:2.7.0")
+
+    // 📞 Voice / video calls
+    implementation("io.getstream:stream-webrtc-android:1.3.8")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")

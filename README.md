@@ -30,6 +30,10 @@ Made in India 🇮🇳 chat app, from the [Flikk](https://github.com/Tnaveenrohi
 - 🧹 Clear chat
 - 💾 Backup & restore (.zip, can be saved to Google Drive)
 
+- 🟢 Status: text (colors) / photo, 24 hours, view count & names
+- 📞 Voice & 📹 video calls (WebRTC, peer-to-peer, Firestore signaling), call log, lock-screen incoming call
+  - Optional TURN server: add Firestore doc `config/turn` with `urls` (array), `username`, `credential` when calls fail on some mobile networks
+
 ## Setup
 1. Add `app/google-services.json` from the Firebase console (package `com.flikk.chat`).
 2. Firebase → Authentication → enable **Anonymous**.

@@ -48,6 +48,18 @@ data class ChatRow(
 
 data class Peer(val uid: String, val name: String, val phone: String)
 
+data class StatusItem(
+    val id: String, val owner: String, val type: String, val text: String,
+    val color: Long, val media: String, val ts: Long, val seen: Boolean,
+)
+
+data class CallLog(
+    val id: String, val peer: String, val outgoing: Boolean, val video: Boolean,
+    val ts: Long, val dur: Long, val missed: Boolean,
+)
+
+const val STATUS_TTL = 24 * 3_600_000L
+
 data class Group(val gid: String, val name: String, val members: List<String>, val admins: List<String>)
 
 fun isGroup(peer: String) = peer.startsWith("g:")
@@ -65,7 +77,7 @@ fun preview(m: Msg): String = when {
 /**
  * Chats annee ikkade — user phone lo (SQLite). Server lo emi save avvadu.
  */
-class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 3) {
+class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
 
     private val _changes = MutableStateFlow(0L)
     /** Prathi change ki number perugutundi — UI dinni chusi refresh avutundi. */
@@ -87,7 +99,7 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 3) {
         )
         db.execSQL("CREATE INDEX idx_msg_peer ON messages(peer, ts)")
         db.execSQL("CREATE TABLE peers(uid TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL)")
-        onUpgrade(db, 1, 3)
+        onUpgrade(db, 1, 4)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -110,6 +122,10 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 3) {
         }
         if (oldVersion < 3) {
             db.execSQL("ALTER TABLE messages ADD COLUMN expires INTEGER NOT NULL DEFAULT 0")
+        }
+        if (oldVersion < 4) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS statuses(id TEXT PRIMARY KEY, owner TEXT NOT NULL, type TEXT NOT NULL, text TEXT NOT NULL, color INTEGER NOT NULL, media TEXT NOT NULL, ts INTEGER NOT NULL, seen INTEGER NOT NULL DEFAULT 0)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS calllog(id TEXT PRIMARY KEY, peer TEXT NOT NULL, outgoing INTEGER NOT NULL, video INTEGER NOT NULL, ts INTEGER NOT NULL, dur INTEGER NOT NULL, missed INTEGER NOT NULL)")
         }
     }
 
@@ -280,5 +296,80 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 3) {
             buildMap { while (c.moveToNext()) put(c.getString(0), c.getInt(1)) }
         }
         return members.minOf { got[it] ?: 1 }
+    }
+
+    // ---------- Status ----------
+
+    fun insertStatus(st: StatusItem): Boolean {
+        val cv = ContentValues().apply {
+            put("id", st.id); put("owner", st.owner); put("type", st.type); put("text", st.text)
+            put("color", st.color); put("media", st.media); put("ts", st.ts); put("seen", if (st.seen) 1 else 0)
+        }
+        val r = writableDatabase.insertWithOnConflict("statuses", null, cv, SQLiteDatabase.CONFLICT_IGNORE)
+        if (r != -1L) bump()
+        return r != -1L
+    }
+
+    fun status(id: String): StatusItem? = statusQuery("WHERE id=?", arrayOf(id)).firstOrNull()
+
+    /** 24 hours lopu statuses (paatavi mundu) */
+    fun statuses(): List<StatusItem> =
+        statusQuery("WHERE ts>? ORDER BY ts ASC", arrayOf((System.currentTimeMillis() - STATUS_TTL).toString()))
+
+    private fun statusQuery(where: String, args: Array<String>): List<StatusItem> = readableDatabase.rawQuery(
+        "SELECT id, owner, type, text, color, media, ts, seen FROM statuses $where", args
+    ).use { c ->
+        buildList {
+            while (c.moveToNext()) add(
+                StatusItem(c.getString(0), c.getString(1), c.getString(2), c.getString(3), c.getLong(4),
+                    c.getString(5), c.getLong(6), c.getInt(7) == 1)
+            )
+        }
+    }
+
+    fun markStatusSeen(id: String) {
+        val cv = ContentValues().apply { put("seen", 1) }
+        if (writableDatabase.update("statuses", cv, "id=? AND seen=0", arrayOf(id)) > 0) bump()
+    }
+
+    fun deleteStatus(id: String) { writableDatabase.delete("statuses", "id=?", arrayOf(id)); bump() }
+
+    fun purgeStatuses(): List<String> {
+        val cut = (System.currentTimeMillis() - STATUS_TTL).toString()
+        val paths = readableDatabase.rawQuery("SELECT media FROM statuses WHERE ts<? AND media!=''", arrayOf(cut))
+            .use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+        if (writableDatabase.delete("statuses", "ts<?", arrayOf(cut)) > 0) bump()
+        return paths
+    }
+
+    /** Naa status chusina vaallu */
+    fun addView(statusId: String, uid: String) {
+        writableDatabase.execSQL("INSERT OR IGNORE INTO rcpt(msg_id, uid, status) VALUES(?,?,4)", arrayOf<Any>(statusId, uid))
+        bump()
+    }
+
+    fun views(statusId: String): List<String> = readableDatabase.rawQuery(
+        "SELECT uid FROM rcpt WHERE msg_id=? AND status=4", arrayOf(statusId)
+    ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+
+    // ---------- Call log ----------
+
+    fun logCall(c: CallLog) {
+        val cv = ContentValues().apply {
+            put("id", c.id); put("peer", c.peer); put("outgoing", if (c.outgoing) 1 else 0)
+            put("video", if (c.video) 1 else 0); put("ts", c.ts); put("dur", c.dur); put("missed", if (c.missed) 1 else 0)
+        }
+        writableDatabase.insertWithOnConflict("calllog", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        bump()
+    }
+
+    fun calls(): List<CallLog> = readableDatabase.rawQuery(
+        "SELECT id, peer, outgoing, video, ts, dur, missed FROM calllog ORDER BY ts DESC LIMIT 200", null
+    ).use { c ->
+        buildList {
+            while (c.moveToNext()) add(
+                CallLog(c.getString(0), c.getString(1), c.getInt(2) == 1, c.getInt(3) == 1, c.getLong(4), c.getLong(5), c.getInt(6) == 1)
+            )
+        }
     }
 }

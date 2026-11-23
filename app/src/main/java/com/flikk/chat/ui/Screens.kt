@@ -1,6 +1,18 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material.icons.filled.AddIcCall
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CallMade
+import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.Videocam
+import com.flikk.chat.data.CallLog
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -188,8 +200,12 @@ fun HomeScreen(
     openProfile: () -> Unit,
     openNewGroup: () -> Unit,
     openStarred: () -> Unit,
+    openStatusText: () -> Unit,
+    openStatusViewer: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val caller = rememberCaller()
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -229,7 +245,7 @@ fun HomeScreen(
                         ),
                     )
                 }
-            } else {
+            } else Column {
                 Header(title = "Flikkchat", actions = {
                     IconButton(onClick = { searching = true }) { Icon(Icons.Filled.Search, "Search") }
                     Box {
@@ -241,11 +257,32 @@ fun HomeScreen(
                         }
                     }
                 })
+                TabRow(
+                    selectedTabIndex = tab, containerColor = Color.Black, contentColor = Pink,
+                    indicator = { pos ->
+                        TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(pos[tab]), color = Pink)
+                    },
+                    divider = { HorizontalDivider(color = Line) },
+                ) {
+                    listOf("Chats", "Status", "Calls").forEachIndexed { i, t ->
+                        Tab(
+                            selected = tab == i, onClick = { tab = i },
+                            text = { Text(t, fontWeight = FontWeight.SemiBold) },
+                            selectedContentColor = Pink, unselectedContentColor = Muted,
+                        )
+                    }
+                }
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = openContacts, containerColor = Pink, contentColor = Color.White) {
-                Icon(Icons.AutoMirrored.Filled.Message, "New chat")
+            if (!searching && tab == 0) {
+                FloatingActionButton(onClick = openContacts, containerColor = Pink, contentColor = Color.White) {
+                    Icon(Icons.AutoMirrored.Filled.Message, "New chat")
+                }
+            } else if (!searching && tab == 2) {
+                FloatingActionButton(onClick = openContacts, containerColor = Pink, contentColor = Color.White) {
+                    Icon(Icons.Filled.AddIcCall, "New call")
+                }
             }
         },
     ) { pad ->
@@ -267,6 +304,10 @@ fun HomeScreen(
                     }
                 }
             }
+        } else if (tab == 1) {
+            Box(Modifier.fillMaxSize().padding(pad)) { StatusTab(openText = openStatusText, openViewer = openStatusViewer) }
+        } else if (tab == 2) {
+            Box(Modifier.fillMaxSize().padding(pad)) { CallsTab(caller) }
         } else if (chats.isEmpty()) {
             Column(
                 Modifier.fillMaxSize().padding(pad).padding(32.dp),
@@ -523,6 +564,57 @@ fun ProfileScreen(onBack: () -> Unit) {
                 ) { Text("Restore", color = Color.White) }
             }
             if (backupMsg != null) { Spacer(Modifier.height(10.dp)); Text(backupMsg!!, color = Muted) }
+        }
+    }
+}
+
+// ---------------- Calls tab ----------------
+
+@Composable
+fun CallsTab(caller: (String, Boolean) -> Unit) {
+    val version by Chat.db.changes.collectAsState()
+    val calls by produceState(initialValue = emptyList<CallLog>(), version) {
+        value = withContext(Dispatchers.IO) { Chat.db.calls() }
+    }
+    if (calls.isEmpty()) {
+        Column(
+            Modifier.fillMaxSize().padding(32.dp),
+            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("📞", fontSize = 40.sp)
+            Spacer(Modifier.height(8.dp))
+            Text("Inka calls levu. Chat lo paina 📞 / 📹 nokki call cheyyandi.", color = Muted, textAlign = TextAlign.Center)
+        }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize()) {
+        items(calls, key = { it.id }) { c ->
+            val name = Chat.nameOf(c.peer)
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Avatar(name)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
+                        color = if (c.missed) Color(0xFFFF6B6B) else Color.White)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (c.outgoing) Icons.Filled.CallMade else Icons.Filled.CallReceived, null,
+                            tint = if (c.missed) Color(0xFFFF6B6B) else Color(0xFF22C55E), modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            listTime(c.ts) + if (c.dur > 0) " · ${duration(c.dur)}" else "",
+                            color = Muted, fontSize = 13.sp,
+                        )
+                    }
+                }
+                IconButton(onClick = { caller(c.peer, c.video) }) {
+                    Icon(if (c.video) Icons.Filled.Videocam else Icons.Filled.Call, "Call", tint = Pink)
+                }
+            }
         }
     }
 }

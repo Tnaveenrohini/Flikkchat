@@ -113,6 +113,7 @@ object Chat {
         prefs = application.getSharedPreferences("flikkchat", Context.MODE_PRIVATE)
         ready = FirebaseApp.getApps(application).isNotEmpty()
         Crypto.init(prefs)
+        Calls.init(application)
         createChannel()
         if (loggedIn) start()
     }
@@ -247,6 +248,7 @@ object Chat {
 
     fun purgeExpired() {
         for (p in db.purgeExpired(System.currentTimeMillis())) File(p).delete()
+        for (p in db.purgeStatuses()) File(p).delete()
     }
 
     // ---------- Encryption keys ----------
@@ -367,6 +369,18 @@ object Chat {
             }
         }
 
+        // 📞 Incoming call
+        if (type == "call") {
+            val callId = d.getString("call")
+            val ts = d.getLong("ts") ?: 0L
+            try { ref.delete().await() } catch (_: Exception) {}
+            if (callId != null && !isBlocked(from) && System.currentTimeMillis() - ts < 60_000) {
+                ensurePeer(from)
+                Calls.onIncoming(callId, from, d.getBoolean("video") ?: false)
+            }
+            return
+        }
+
         ensurePeer(from)
         val peerKey = if (group != null) "g:$group" else from
         if (group != null && (type == "sys" || db.group(group) == null)) refreshGroup(group)
@@ -397,6 +411,17 @@ object Chat {
             f.writeBytes(buf.toByteArray())
             mediaPath = f.absolutePath
             for (c in chunkRefs) try { c.delete() } catch (_: Exception) {}
+        }
+
+        // 🟢 Status
+        if (type == "status") {
+            val ts = d.getLong("ts") ?: System.currentTimeMillis()
+            if (System.currentTimeMillis() - ts < STATUS_TTL) {
+                db.insertStatus(StatusItem(id, from, if (mediaPath.isNotEmpty()) "image" else "text", text,
+                    d.getLong("color") ?: 0L, mediaPath, ts, false))
+            } else if (mediaPath.isNotEmpty()) File(mediaPath).delete()
+            try { ref.delete().await() } catch (_: Exception) {}
+            return
         }
 
         // Disappearing messages timer marchinappudu
@@ -434,6 +459,11 @@ object Chat {
         val msgId = d.getString("msg") ?: d.id
         val status = (d.getLong("status") ?: return).toInt()
         val by = d.getString("by") ?: ""
+        if (status == 4) {
+            if (db.status(msgId) != null) db.addView(msgId, by)
+            try { d.reference.delete().await() } catch (_: Exception) {}
+            return
+        }
         val local = db.msg(msgId)
         if (local != null) {
             if (isGroup(local.peer)) {
@@ -500,52 +530,11 @@ object Chat {
         send(peer, "", "audio", file.absolutePath, "audio/mp4", dur, reply)
 
     private suspend fun push(m: Msg) {
-        val uid = me ?: return
+        if (me == null) return
         synchronized(inFlight) { if (!inFlight.add(m.id)) return }
         try {
             pushLock.withLock {
-                val to = recipients(m.peer)
-                val base = mutableMapOf<String, Any>("from" to uid, "ts" to m.ts, "type" to m.type)
-                if (isGroup(m.peer)) base["group"] = gidOf(m.peer)
-                if (m.replyId.isNotEmpty()) base["rid"] = m.replyId
-                if (m.fwd) base["fwd"] = true
-                if (m.dur > 0) base["dur"] = m.dur
-                if (m.expires > 0) base["exp"] = (m.expires - m.ts).coerceAtLeast(60_000L)
-                var bytes: ByteArray? = null
-                if (m.media.isNotEmpty()) {
-                    val f = File(m.media)
-                    if (!f.exists()) return@withLock
-                    bytes = f.readBytes()
-                    base["mime"] = m.mime
-                }
-                for (r in to) {
-                    val payload = base.toMutableMap()
-                    val pub = pubOf(r, refresh = true)
-                    val key = pub?.let { Crypto.keyFor(it) }
-                    if (key != null) {
-                        // 🔒 Text + reply encrypt
-                        val j = JSONObject().put("text", m.text).put("rtext", m.replyText).put("rname", m.replyName)
-                        payload["enc"] = 1
-                        payload["ct"] = Crypto.b64(Crypto.encrypt(key, j.toString().toByteArray()))
-                    } else {
-                        // Paata app (key ledu) — plain
-                        payload["text"] = m.text
-                        if (m.replyId.isNotEmpty()) { payload["rtext"] = m.replyText; payload["rname"] = m.replyName }
-                    }
-                    val inbox = fs.collection("inbox").document(r)
-                    val b = bytes
-                    if (b != null) {
-                        val chunks = (b.indices step CHUNK).map { b.copyOfRange(it, minOf(it + CHUNK, b.size)) }
-                        payload["n"] = chunks.size
-                        chunks.forEachIndexed { i, c ->
-                            val data = if (key != null) Crypto.encrypt(key, c) else c
-                            inbox.collection("chunks").document("${m.id}_$i")
-                                .set(mapOf("from" to uid, "b" to Blob.fromBytes(data))).await()
-                        }
-                    }
-                    inbox.collection("msgs").document(m.id).set(payload).await()
-                }
-                db.updateStatus(m.id, 1)
+                if (deliver(m, recipients(m.peer))) db.updateStatus(m.id, 1)
             }
         } catch (_: Exception) {
             // Internet vachaka malli try chestundi
@@ -554,9 +543,109 @@ object Chat {
         }
     }
 
-    private fun sendControl(peer: String, data: Map<String, Any>) {
+    /** Prathi recipient ki 🔒 encrypt chesi inbox lo pedtundi. Exception = network problem. */
+    private suspend fun deliver(m: Msg, to: List<String>, extra: Map<String, Any> = emptyMap()): Boolean {
+        val uid = me ?: return false
+        val base = mutableMapOf<String, Any>("from" to uid, "ts" to m.ts, "type" to m.type)
+        base.putAll(extra)
+        if (isGroup(m.peer)) base["group"] = gidOf(m.peer)
+        if (m.replyId.isNotEmpty()) base["rid"] = m.replyId
+        if (m.fwd) base["fwd"] = true
+        if (m.dur > 0) base["dur"] = m.dur
+        if (m.expires > 0 && m.type != "status") base["exp"] = (m.expires - m.ts).coerceAtLeast(60_000L)
+        var bytes: ByteArray? = null
+        if (m.media.isNotEmpty()) {
+            val f = File(m.media)
+            if (!f.exists()) return false
+            bytes = f.readBytes()
+            base["mime"] = m.mime
+        }
+        for (r in to) {
+            val payload = base.toMutableMap()
+            val pub = pubOf(r, refresh = true)
+            val key = pub?.let { Crypto.keyFor(it) }
+            if (key != null) {
+                val j = JSONObject().put("text", m.text).put("rtext", m.replyText).put("rname", m.replyName)
+                payload["enc"] = 1
+                payload["ct"] = Crypto.b64(Crypto.encrypt(key, j.toString().toByteArray()))
+            } else {
+                // Paata app (key ledu) — plain
+                payload["text"] = m.text
+                if (m.replyId.isNotEmpty()) { payload["rtext"] = m.replyText; payload["rname"] = m.replyName }
+            }
+            val inbox = fs.collection("inbox").document(r)
+            val b = bytes
+            if (b != null) {
+                val chunks = (b.indices step CHUNK).map { b.copyOfRange(it, minOf(it + CHUNK, b.size)) }
+                payload["n"] = chunks.size
+                chunks.forEachIndexed { i, c ->
+                    val data = if (key != null) Crypto.encrypt(key, c) else c
+                    inbox.collection("chunks").document("${m.id}_$i")
+                        .set(mapOf("from" to uid, "b" to Blob.fromBytes(data))).await()
+                }
+            }
+            inbox.collection("msgs").document(m.id).set(payload).await()
+        }
+        return true
+    }
+
+    // ---------- Status ----------
+
+    /** Naa contacts (block chesinavaallu kaakunda) */
+    private fun statusAudience(): List<String> = db.people().map { it.uid }.filter { it != me && !isBlocked(it) }
+
+    suspend fun postTextStatus(text: String, color: Long): Boolean = withContext(Dispatchers.IO) {
+        val uid = me ?: return@withContext false
+        val st = StatusItem(UUID.randomUUID().toString(), uid, "text", text.trim(), color, "", System.currentTimeMillis(), true)
+        db.insertStatus(st)
+        shareStatus(st)
+        true
+    }
+
+    suspend fun postPhotoStatus(uri: Uri, caption: String): String? = withContext(Dispatchers.IO) {
+        val uid = me ?: return@withContext "Login avvaledu"
+        val id = UUID.randomUUID().toString()
+        try {
+            val f = Media.prepareImage(app, uri, id)
+            val st = StatusItem(id, uid, "image", caption.trim(), 0, f.absolutePath, System.currentTimeMillis(), true)
+            db.insertStatus(st)
+            shareStatus(st)
+            null
+        } catch (e: Exception) { "Status pettalekapoyam: ${e.message}" }
+    }
+
+    private fun shareStatus(st: StatusItem) {
+        val m = Msg(st.id, "", true, st.text, st.ts, 0, me ?: "", "status", st.media,
+            if (st.media.isNotEmpty()) "image/jpeg" else "")
+        val to = statusAudience()
+        scope.launch {
+            try { deliver(m, to, mapOf("color" to st.color)) } catch (_: Exception) {}
+        }
+    }
+
+    fun deleteMyStatus(st: StatusItem) {
+        if (st.media.isNotEmpty()) File(st.media).delete()
+        db.deleteStatus(st.id)
+    }
+
+    /** Vere vaalla status chusinappudu — vaallaki "seen" pampu */
+    fun viewStatus(st: StatusItem) {
         val uid = me ?: return
-        val to = recipients(peer)
+        if (st.seen || st.owner == uid) return
+        db.markStatusSeen(st.id)
+        scope.launch {
+            try {
+                fs.collection("inbox").document(st.owner).collection("receipts").document("${st.id}_$uid")
+                    .set(mapOf("msg" to st.id, "status" to 4, "by" to uid)).await()
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun sendControl(peer: String, data: Map<String, Any>) = sendTo(recipients(peer), data, peer)
+
+    /** Chinna control message (call, sys, delete...) */
+    fun sendTo(to: List<String>, data: Map<String, Any>, peer: String = "") {
+        val uid = me ?: return
         scope.launch {
             val payload = data.toMutableMap()
             payload["from"] = uid

@@ -1,6 +1,8 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Timer
@@ -184,6 +186,7 @@ fun ChatScreen(
     var replyTo by remember { mutableStateOf<Msg?>(null) }
     var askDelete by remember { mutableStateOf<Msg?>(null) }
     var menu by remember { mutableStateOf(false) }
+    val caller = rememberCaller()
     var askTimer by remember { mutableStateOf(false) }
     var askClear by remember { mutableStateOf(false) }
     var showCode by remember { mutableStateOf<String?>(null) }
@@ -256,6 +259,10 @@ fun ChatScreen(
                 onTitleClick = if (group) ({ openGroupInfo(gidOf(peer)) }) else null,
                 actions = {
                     if (timer > 0) Icon(Icons.Filled.Timer, "Disappearing", tint = Pink, modifier = Modifier.size(20.dp))
+                    if (!group && !blocked) {
+                        IconButton(onClick = { caller(peer, true) }) { Icon(Icons.Filled.Videocam, "Video call") }
+                        IconButton(onClick = { caller(peer, false) }) { Icon(Icons.Filled.Call, "Voice call") }
+                    }
                     Box {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menu") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
