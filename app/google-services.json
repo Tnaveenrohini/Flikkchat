@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "866652796323",
+    "project_id": "flikkchat",
+    "storage_bucket": "flikkchat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:866652796323:android:e455be36d13d49b0125616",
+        "android_client_info": {
+          "package_name": "com.flikk.chat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4LeOr6se-eF036qqrtSKRFU9PuYoVga0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
