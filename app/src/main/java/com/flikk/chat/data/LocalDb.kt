@@ -32,6 +32,7 @@ data class Msg(
     val fwd: Boolean = false,
     val deleted: Boolean = false,
     val starred: Boolean = false,
+    val expires: Long = 0,
 )
 
 data class ChatRow(
@@ -64,7 +65,7 @@ fun preview(m: Msg): String = when {
 /**
  * Chats annee ikkade — user phone lo (SQLite). Server lo emi save avvadu.
  */
-class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 2) {
+class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 3) {
 
     private val _changes = MutableStateFlow(0L)
     /** Prathi change ki number perugutundi — UI dinni chusi refresh avutundi. */
@@ -86,7 +87,7 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 2) {
         )
         db.execSQL("CREATE INDEX idx_msg_peer ON messages(peer, ts)")
         db.execSQL("CREATE TABLE peers(uid TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL)")
-        onUpgrade(db, 1, 2)
+        onUpgrade(db, 1, 3)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -107,16 +108,19 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 2) {
             db.execSQL("CREATE TABLE IF NOT EXISTS groups(gid TEXT PRIMARY KEY, name TEXT NOT NULL, members TEXT NOT NULL, admins TEXT NOT NULL)")
             db.execSQL("CREATE TABLE IF NOT EXISTS rcpt(msg_id TEXT NOT NULL, uid TEXT NOT NULL, status INTEGER NOT NULL, PRIMARY KEY(msg_id, uid))")
         }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN expires INTEGER NOT NULL DEFAULT 0")
+        }
     }
 
-    private val COLS = "id, peer, from_me, text, ts, status, sender, type, media, mime, dur, reply_id, reply_text, reply_name, fwd, deleted, starred"
+    private val COLS = "id, peer, from_me, text, ts, status, sender, type, media, mime, dur, reply_id, reply_text, reply_name, fwd, deleted, starred, expires"
 
     private fun Cursor.toMsg() = Msg(
         id = getString(0), peer = getString(1), fromMe = getInt(2) == 1, text = getString(3),
         ts = getLong(4), status = getInt(5), sender = getString(6), type = getString(7),
         media = getString(8), mime = getString(9), dur = getLong(10), replyId = getString(11),
         replyText = getString(12), replyName = getString(13), fwd = getInt(14) == 1,
-        deleted = getInt(15) == 1, starred = getInt(16) == 1,
+        deleted = getInt(15) == 1, starred = getInt(16) == 1, expires = getLong(17),
     )
 
     private fun query(sql: String, args: Array<String>?): List<Msg> =
@@ -132,6 +136,7 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 2) {
             put("dur", m.dur); put("reply_id", m.replyId); put("reply_text", m.replyText)
             put("reply_name", m.replyName); put("fwd", if (m.fwd) 1 else 0)
             put("deleted", if (m.deleted) 1 else 0); put("starred", if (m.starred) 1 else 0)
+            put("expires", m.expires)
         }
         val row = writableDatabase.insertWithOnConflict("messages", null, cv, SQLiteDatabase.CONFLICT_IGNORE)
         if (row != -1L) bump()
@@ -159,6 +164,30 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 2) {
 
     fun deleteForMe(id: String) {
         writableDatabase.delete("messages", "id=?", arrayOf(id)); bump()
+    }
+
+    /** Time aipoyina (disappearing) messages delete — vaati media paths return */
+    fun purgeExpired(now: Long): List<String> {
+        val paths = readableDatabase.rawQuery(
+            "SELECT media FROM messages WHERE expires>0 AND expires<? AND media!=''", arrayOf(now.toString())
+        ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+        val n = writableDatabase.delete("messages", "expires>0 AND expires<?", arrayOf(now.toString()))
+        if (n > 0) bump()
+        return paths
+    }
+
+    /** Chat clear — media paths return */
+    fun clearChat(peer: String): List<String> {
+        val paths = readableDatabase.rawQuery(
+            "SELECT media FROM messages WHERE peer=? AND media!=''", arrayOf(peer)
+        ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+        writableDatabase.delete("messages", "peer=? AND type!='sys'", arrayOf(peer))
+        bump()
+        return paths
+    }
+
+    fun checkpoint() {
+        try { readableDatabase.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { it.moveToFirst() } } catch (_: Exception) {}
     }
 
     fun messages(peer: String): List<Msg> = query("SELECT $COLS FROM messages WHERE peer=? ORDER BY ts ASC", arrayOf(peer))

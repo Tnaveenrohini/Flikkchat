@@ -48,6 +48,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import org.json.JSONObject
 
 data class PeerState(
     val name: String,
@@ -110,6 +112,7 @@ object Chat {
         db = LocalDb(application)
         prefs = application.getSharedPreferences("flikkchat", Context.MODE_PRIVATE)
         ready = FirebaseApp.getApps(application).isNotEmpty()
+        Crypto.init(prefs)
         createChannel()
         if (loggedIn) start()
     }
@@ -224,19 +227,77 @@ object Chat {
                 }
             }
 
-        // 3) Pampakunda unna messages malli pampu
+        // 3) Naa public key publish (encryption kosam)
+        fs.collection("users").document(uid).set(mapOf("pub" to Crypto.myPub), SetOptions.merge())
+
+        // 4) Pampakunda unna messages malli pampu
         scope.launch { retryPending() }
 
-        // 4) Online heartbeat
+        // 5) Online heartbeat + disappearing messages cleanup
         heartbeat = scope.launch {
             while (isActive) {
                 if (foreground) touchPresence()
+                purgeExpired()
                 delay(30_000)
             }
         }
     }
 
     private suspend fun retryPending() { for (m in db.pending()) push(m) }
+
+    fun purgeExpired() {
+        for (p in db.purgeExpired(System.currentTimeMillis())) File(p).delete()
+    }
+
+    // ---------- Encryption keys ----------
+
+    private val pubKeys = ConcurrentHashMap<String, String>()
+
+    /** Peer public key (lekapothe null = old app, encryption ledu) */
+    private suspend fun pubOf(uid: String, refresh: Boolean = false): String? {
+        if (!refresh) pubKeys[uid]?.let { return it }
+        return try {
+            val p = fs.collection("users").document(uid).get().await().getString("pub")
+            if (p != null) pubKeys[uid] = p
+            p
+        } catch (_: Exception) { pubKeys[uid] }
+    }
+
+    suspend fun safetyCode(uid: String): String? = pubOf(uid)?.let { Crypto.safetyCode(it) }
+
+    // ---------- Block ----------
+
+    private fun blockedSet(): Set<String> = prefs.getStringSet("blocked", emptySet()) ?: emptySet()
+    fun isBlocked(uid: String) = uid in blockedSet()
+    fun setBlocked(uid: String, blocked: Boolean) {
+        val s = blockedSet().toMutableSet()
+        if (blocked) s += uid else s -= uid
+        prefs.edit().putStringSet("blocked", s).apply()
+        db.bump()
+    }
+
+    // ---------- Disappearing messages ----------
+
+    fun timerOf(peer: String): Long = prefs.getLong("ttl_$peer", 0L)
+
+    fun ttlLabel(ttl: Long): String = when (ttl) {
+        0L -> "off"
+        86_400_000L -> "24 hours"
+        7 * 86_400_000L -> "7 days"
+        90 * 86_400_000L -> "90 days"
+        else -> "${ttl / 3_600_000} hours"
+    }
+
+    fun setTimer(peer: String, ttl: Long) {
+        prefs.edit().putLong("ttl_$peer", ttl).apply()
+        val text = if (ttl > 0) "$myName turned on disappearing messages (${ttlLabel(ttl)})"
+        else "$myName turned off disappearing messages"
+        sysNotice(peer, text, mapOf("ttl" to ttl))
+    }
+
+    fun clearChat(peer: String) {
+        for (p in db.clearChat(peer)) File(p).delete()
+    }
 
     private suspend fun ensurePeer(uid: String) {
         if (uid.isEmpty() || uid == me || db.peer(uid) != null) return
@@ -273,6 +334,39 @@ object Chat {
             return
         }
 
+        // Block chesina vaalla messages teeseyi
+        if (isBlocked(from)) {
+            val nn = (d.getLong("n") ?: 0L).toInt()
+            for (i in 0 until nn) try {
+                fs.collection("inbox").document(myUid).collection("chunks").document("${id}_$i").delete()
+            } catch (_: Exception) {}
+            try { ref.delete().await() } catch (_: Exception) {}
+            return
+        }
+
+        // 🔒 Decrypt
+        val encrypted = d.getLong("enc") == 1L
+        var key: javax.crypto.spec.SecretKeySpec? = null
+        var text = d.getString("text") ?: ""
+        var rtext = d.getString("rtext") ?: ""
+        var rname = d.getString("rname") ?: ""
+        if (encrypted) {
+            val ct = Crypto.b64d(d.getString("ct") ?: "")
+            var plain: ByteArray? = null
+            for (refresh in listOf(false, true)) {
+                val pub = pubOf(from, refresh) ?: continue
+                val k = Crypto.keyFor(pub)
+                plain = try { Crypto.decrypt(k, ct) } catch (_: Exception) { null }
+                if (plain != null) { key = k; break }
+            }
+            if (plain == null) {
+                text = "🔒 Ee message open avvaledu (security key maarindi)"
+            } else {
+                val j = JSONObject(String(plain))
+                text = j.optString("text"); rtext = j.optString("rtext"); rname = j.optString("rname")
+            }
+        }
+
         ensurePeer(from)
         val peerKey = if (group != null) "g:$group" else from
         if (group != null && (type == "sys" || db.group(group) == null)) refreshGroup(group)
@@ -290,7 +384,11 @@ object Chat {
                 for (c in chunkRefs) {
                     val cd = c.get().await()
                     val b = cd.getBlob("b") ?: return // inka upload avutundi — taruvatha malli
-                    buf.write(b.toBytes())
+                    val raw = b.toBytes()
+                    if (encrypted) {
+                        val k = key ?: return
+                        buf.write(Crypto.decrypt(k, raw))
+                    } else buf.write(raw)
                 }
             } catch (_: Exception) {
                 return
@@ -301,15 +399,22 @@ object Chat {
             for (c in chunkRefs) try { c.delete() } catch (_: Exception) {}
         }
 
+        // Disappearing messages timer marchinappudu
+        if (type == "sys" && d.contains("ttl")) {
+            prefs.edit().putLong("ttl_$peerKey", d.getLong("ttl") ?: 0L).apply()
+        }
+        val ttl = d.getLong("exp") ?: 0L
+
         val isOpen = foreground && openChat == peerKey
         val m = Msg(
             id = id, peer = peerKey, fromMe = false,
-            text = d.getString("text") ?: "",
+            text = text,
             ts = d.getLong("ts") ?: System.currentTimeMillis(),
             status = 0, sender = from, type = type, media = mediaPath, mime = mime,
             dur = d.getLong("dur") ?: 0L,
-            replyId = d.getString("rid") ?: "", replyText = d.getString("rtext") ?: "",
-            replyName = d.getString("rname") ?: "", fwd = d.getBoolean("fwd") ?: false,
+            replyId = d.getString("rid") ?: "", replyText = rtext,
+            replyName = rname, fwd = d.getBoolean("fwd") ?: false,
+            expires = if (ttl > 0) System.currentTimeMillis() + ttl else 0L,
         )
         val fresh = db.insertMsg(m, readByMe = isOpen || type == "sys")
         try {
@@ -366,6 +471,7 @@ object Chat {
             replyId = reply?.id ?: "", replyText = reply?.let { preview(it) } ?: "",
             replyName = reply?.let { if (it.fromMe) myName else nameOf(it.sender.ifEmpty { it.peer }) } ?: "",
             fwd = fwd,
+            expires = timerOf(peer).let { if (it > 0) System.currentTimeMillis() + it else 0L },
         )
         db.insertMsg(m)
         scope.launch { push(m) }
@@ -399,29 +505,43 @@ object Chat {
         try {
             pushLock.withLock {
                 val to = recipients(m.peer)
-                val payload = mutableMapOf<String, Any>(
-                    "from" to uid, "ts" to m.ts, "type" to m.type, "text" to m.text,
-                )
-                if (isGroup(m.peer)) payload["group"] = gidOf(m.peer)
-                if (m.replyId.isNotEmpty()) {
-                    payload["rid"] = m.replyId; payload["rtext"] = m.replyText; payload["rname"] = m.replyName
-                }
-                if (m.fwd) payload["fwd"] = true
-                if (m.dur > 0) payload["dur"] = m.dur
-                var chunks: List<ByteArray> = emptyList()
+                val base = mutableMapOf<String, Any>("from" to uid, "ts" to m.ts, "type" to m.type)
+                if (isGroup(m.peer)) base["group"] = gidOf(m.peer)
+                if (m.replyId.isNotEmpty()) base["rid"] = m.replyId
+                if (m.fwd) base["fwd"] = true
+                if (m.dur > 0) base["dur"] = m.dur
+                if (m.expires > 0) base["exp"] = (m.expires - m.ts).coerceAtLeast(60_000L)
+                var bytes: ByteArray? = null
                 if (m.media.isNotEmpty()) {
                     val f = File(m.media)
                     if (!f.exists()) return@withLock
-                    val bytes = f.readBytes()
-                    chunks = (bytes.indices step CHUNK).map { bytes.copyOfRange(it, minOf(it + CHUNK, bytes.size)) }
-                    payload["n"] = chunks.size
-                    payload["mime"] = m.mime
+                    bytes = f.readBytes()
+                    base["mime"] = m.mime
                 }
                 for (r in to) {
+                    val payload = base.toMutableMap()
+                    val pub = pubOf(r, refresh = true)
+                    val key = pub?.let { Crypto.keyFor(it) }
+                    if (key != null) {
+                        // 🔒 Text + reply encrypt
+                        val j = JSONObject().put("text", m.text).put("rtext", m.replyText).put("rname", m.replyName)
+                        payload["enc"] = 1
+                        payload["ct"] = Crypto.b64(Crypto.encrypt(key, j.toString().toByteArray()))
+                    } else {
+                        // Paata app (key ledu) — plain
+                        payload["text"] = m.text
+                        if (m.replyId.isNotEmpty()) { payload["rtext"] = m.replyText; payload["rname"] = m.replyName }
+                    }
                     val inbox = fs.collection("inbox").document(r)
-                    chunks.forEachIndexed { i, c ->
-                        inbox.collection("chunks").document("${m.id}_$i")
-                            .set(mapOf("from" to uid, "b" to Blob.fromBytes(c))).await()
+                    val b = bytes
+                    if (b != null) {
+                        val chunks = (b.indices step CHUNK).map { b.copyOfRange(it, minOf(it + CHUNK, b.size)) }
+                        payload["n"] = chunks.size
+                        chunks.forEachIndexed { i, c ->
+                            val data = if (key != null) Crypto.encrypt(key, c) else c
+                            inbox.collection("chunks").document("${m.id}_$i")
+                                .set(mapOf("from" to uid, "b" to Blob.fromBytes(data))).await()
+                        }
                     }
                     inbox.collection("msgs").document(m.id).set(payload).await()
                 }
@@ -520,12 +640,13 @@ object Chat {
         }
     }
 
-    private fun sysMessage(gid: String, text: String) {
+    private fun sysMessage(gid: String, text: String) = sysNotice("g:$gid", text)
+
+    private fun sysNotice(peer: String, text: String, extra: Map<String, Any> = emptyMap()) {
         val uid = me ?: return
-        val peer = "g:$gid"
         val m = Msg(UUID.randomUUID().toString(), peer, true, text, System.currentTimeMillis(), 3, uid, "sys")
         db.insertMsg(m)
-        sendControl(peer, mapOf("type" to "sys", "text" to text))
+        sendControl(peer, mapOf("type" to "sys", "text" to text) + extra)
     }
 
     suspend fun createGroup(name: String, members: List<String>): String? = withContext(Dispatchers.IO) {

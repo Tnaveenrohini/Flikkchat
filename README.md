@@ -23,6 +23,13 @@ Made in India 🇮🇳 chat app, from the [Flikk](https://github.com/Tnaveenrohi
 - ↩️ Reply, ↪ forward, 🗑 delete for me / delete for everyone, copy
 - 🔍 Search chats & messages, ⭐ starred messages
 
+## Phase 3 features
+- 🔒 End-to-end encryption (EC P-256 ECDH + AES-256-GCM). Text, photos, videos and voice are locked on the phone before sending; Firebase only sees encrypted data. Security code check available
+- 🚫 Block / unblock
+- ⏱️ Disappearing messages (24h / 7d / 90d), synced to both phones
+- 🧹 Clear chat
+- 💾 Backup & restore (.zip, can be saved to Google Drive)
+
 ## Setup
 1. Add `app/google-services.json` from the Firebase console (package `com.flikk.chat`).
 2. Firebase → Authentication → enable **Anonymous**.

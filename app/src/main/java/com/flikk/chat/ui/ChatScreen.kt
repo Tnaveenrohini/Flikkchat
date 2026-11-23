@@ -1,6 +1,13 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -176,6 +183,13 @@ fun ChatScreen(
     var selected by remember { mutableStateOf<Msg?>(null) }
     var replyTo by remember { mutableStateOf<Msg?>(null) }
     var askDelete by remember { mutableStateOf<Msg?>(null) }
+    var menu by remember { mutableStateOf(false) }
+    var askTimer by remember { mutableStateOf(false) }
+    var askClear by remember { mutableStateOf(false) }
+    var showCode by remember { mutableStateOf<String?>(null) }
+    val blocked = remember(version) { !group && Chat.isBlocked(peer) }
+    val timer = remember(version) { Chat.timerOf(peer) }
+    LaunchedEffect(peer) { withContext(Dispatchers.IO) { Chat.purgeExpired() } }
     val listState = rememberLazyListState()
     LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) listState.animateScrollToItem(0) }
     BackHandler(enabled = selected != null) { selected = null }
@@ -240,6 +254,27 @@ fun ChatScreen(
                 title = name, subtitle = subtitle, onBack = onBack,
                 leading = { Avatar(name, 40.dp) },
                 onTitleClick = if (group) ({ openGroupInfo(gidOf(peer)) }) else null,
+                actions = {
+                    if (timer > 0) Icon(Icons.Filled.Timer, "Disappearing", tint = Pink, modifier = Modifier.size(20.dp))
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menu") }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            if (group) DropdownMenuItem(text = { Text("Group info") }, onClick = { menu = false; openGroupInfo(gidOf(peer)) })
+                            DropdownMenuItem(text = { Text("Disappearing messages") }, onClick = { menu = false; askTimer = true })
+                            if (!group) DropdownMenuItem(text = { Text("Encryption 🔒") }, onClick = {
+                                menu = false
+                                scope.launch {
+                                    showCode = withContext(Dispatchers.IO) { Chat.safetyCode(peer) } ?: "Ee contact paata app vaadutunnaru — encryption ledu"
+                                }
+                            })
+                            DropdownMenuItem(text = { Text("Clear chat") }, onClick = { menu = false; askClear = true })
+                            if (!group) DropdownMenuItem(
+                                text = { Text(if (blocked) "Unblock" else "Block", color = if (blocked) Color.White else Color(0xFFFF6B6B)) },
+                                onClick = { menu = false; Chat.setBlocked(peer, !blocked) },
+                            )
+                        }
+                    }
+                },
             )
         }
         HorizontalDivider(color = Line)
@@ -268,9 +303,26 @@ fun ChatScreen(
                     )
                 }
             }
+            item(key = "e2e") {
+                Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        "🔒 Messages end-to-end encrypted. Flikkchat / Firebase kuda chadavalevu.",
+                        fontSize = 12.sp, color = Color(0xFFE0C36A), textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(8.dp)).background(Surface)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
         }
 
-        if (!amMember) {
+        if (blocked) {
+            Text(
+                "Meeru ee contact ni block chesaru. Unblock cheyyadaniki tap cheyyandi.",
+                color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp,
+                modifier = Modifier.fillMaxWidth().clickable { Chat.setBlocked(peer, false) }
+                    .navigationBarsPadding().padding(18.dp),
+            )
+        } else if (!amMember) {
             Text(
                 "Meeru ee group lo member kaadu",
                 color = Muted, textAlign = TextAlign.Center,
@@ -346,6 +398,64 @@ fun ChatScreen(
             }
         }
         }
+    }
+
+    if (askTimer) {
+        val options = listOf(0L to "Off", 86_400_000L to "24 hours", 7 * 86_400_000L to "7 days", 90 * 86_400_000L to "90 days")
+        AlertDialog(
+            onDismissRequest = { askTimer = false },
+            title = { Text("Disappearing messages") },
+            text = {
+                Column {
+                    Text("Kotha messages ee time tarvatha rendu phones nunchi delete avutayi.", color = Muted, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    for ((v, label) in options) {
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                askTimer = false
+                                if (v != timer) Chat.setTimer(peer, v)
+                            }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = v == timer, onClick = null,
+                                colors = RadioButtonDefaults.colors(selectedColor = Pink))
+                            Spacer(Modifier.width(10.dp))
+                            Text(label)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { askTimer = false }) { Text("Close", color = Muted) } },
+            containerColor = Surface,
+        )
+    }
+    if (askClear) {
+        AlertDialog(
+            onDismissRequest = { askClear = false },
+            title = { Text("Clear this chat?") },
+            text = { Text("Ee chat lo messages, photos annee mee phone nunchi delete avutayi.", color = Muted) },
+            confirmButton = { TextButton(onClick = { askClear = false; Chat.clearChat(peer) }) { Text("Clear", color = Pink) } },
+            dismissButton = { TextButton(onClick = { askClear = false }) { Text("Cancel", color = Muted) } },
+            containerColor = Surface,
+        )
+    }
+    showCode?.let { code ->
+        AlertDialog(
+            onDismissRequest = { showCode = null },
+            title = { Text("🔒 Encryption") },
+            text = {
+                Column {
+                    Text("Messages, photos, voice annee end-to-end encrypted. Mee iddari phones lo matrame open avutayi.", color = Muted, fontSize = 13.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Security code", color = Pink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(code, fontSize = 16.sp, letterSpacing = 1.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Mee friend phone lo kuda ide code unte, connection safe.", color = Muted, fontSize = 12.sp)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showCode = null }) { Text("OK", color = Pink) } },
+            containerColor = Surface,
+        )
     }
 
     askDelete?.let { m ->

@@ -1,6 +1,11 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import com.flikk.chat.data.Backup
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Groups
@@ -426,10 +431,50 @@ fun ProfileScreen(onBack: () -> Unit) {
     var msg by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    var backupMsg by remember { mutableStateOf<String?>(null) }
+    var askRestore by remember { mutableStateOf(false) }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) {
+            busy = true; backupMsg = "Backup avutundi..."
+            scope.launch {
+                val r = withContext(Dispatchers.IO) { Backup.export(ctx, uri) }
+                busy = false
+                backupMsg = r.fold({ "Backup ready ✅ ($it media files)" }, { "Backup fail: ${it.message}" })
+            }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            busy = true; backupMsg = "Restore avutundi..."
+            scope.launch {
+                val r = withContext(Dispatchers.IO) { Backup.restore(ctx, uri) }
+                busy = false
+                r.fold({ Backup.restartApp(ctx) }, { backupMsg = "Restore fail: ${it.message}" })
+            }
+        }
+    }
+    if (askRestore) {
+        AlertDialog(
+            onDismissRequest = { askRestore = false },
+            title = { Text("Restore backup?") },
+            text = { Text("Ippudu phone lo unna chats backup file lo unna chats tho replace avutayi. App restart avutundi.", color = Muted) },
+            confirmButton = {
+                TextButton(onClick = { askRestore = false; importLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
+                    Text("Choose file", color = Pink)
+                }
+            },
+            dismissButton = { TextButton(onClick = { askRestore = false }) { Text("Cancel", color = Muted) } },
+            containerColor = Surface,
+        )
+    }
 
     Column(Modifier.fillMaxSize().background(Color.Black).imePadding()) {
         Header(title = "Profile", onBack = onBack)
-        Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            Modifier.padding(24.dp).verticalScroll(rememberScrollState()).navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Avatar(name.ifBlank { "?" }, 110.dp)
             Spacer(Modifier.height(24.dp))
             OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true,
@@ -454,6 +499,30 @@ fun ProfileScreen(onBack: () -> Unit) {
                 shape = RoundedCornerShape(14.dp),
             ) { Text("Save") }
             if (msg != null) { Spacer(Modifier.height(10.dp)); Text(msg!!, color = Muted) }
+
+            Spacer(Modifier.height(28.dp))
+            HorizontalDivider(color = Line)
+            Spacer(Modifier.height(16.dp))
+            Text("💾 Chat backup", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, modifier = Modifier.fillMaxWidth())
+            Text(
+                "Chats, photos, videos, voice annee okka file lo save avutayi. File picker lo Google Drive select chesthe Drive lo untundi.",
+                color = Muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { exportLauncher.launch("Flikkchat-backup-" + java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date()) + ".zip") },
+                    enabled = !busy, modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Pink), shape = RoundedCornerShape(12.dp),
+                ) { Text("Backup") }
+                Spacer(Modifier.width(10.dp))
+                Button(
+                    onClick = { askRestore = true },
+                    enabled = !busy, modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Surface), shape = RoundedCornerShape(12.dp),
+                ) { Text("Restore", color = Color.White) }
+            }
+            if (backupMsg != null) { Spacer(Modifier.height(10.dp)); Text(backupMsg!!, color = Muted) }
         }
     }
 }
