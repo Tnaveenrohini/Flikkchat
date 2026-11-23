@@ -135,7 +135,14 @@ fun CallScreen(st: CallState) {
         Phase.ENDED -> st.endReason
     }
 
-    Box(Modifier.fillMaxSize().background(Ink)) {
+    if (!st.video) {
+        VoiceCallLayout(st, name, status) {
+            if (Calls.hasPermissions(false)) Calls.accept() else acceptLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+        }
+        return
+    }
+
+    Box(Modifier.fillMaxSize().background(NavBg)) {
         val r = remote
         val showRemote = st.video && r != null && st.phase == Phase.CONNECTED
         if (showRemote && r != null) {
@@ -159,7 +166,7 @@ fun CallScreen(st: CallState) {
         // Paina bar (video lo)
         if (showRemote) {
             Box(
-                Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Ink.copy(alpha = 0.8f), Color.Transparent)))
+                Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(NavBg.copy(alpha = 0.8f), Color.Transparent)))
                     .statusBarsPadding().padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 40.dp),
             ) {
                 Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -201,7 +208,7 @@ fun CallScreen(st: CallState) {
             Phase.ENDED -> {}
             else -> Row(
                 Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 26.dp)
-                    .fillMaxWidth().clip(RoundedCornerShape(34.dp)).background(Ink.copy(alpha = 0.78f))
+                    .fillMaxWidth().clip(RoundedCornerShape(34.dp)).background(NavBg.copy(alpha = 0.78f))
                     .padding(horizontal = 12.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -229,7 +236,7 @@ private fun CtrlBtn(icon: ImageVector, label: String, active: Boolean = false, o
     Box(
         Modifier.size(56.dp).clip(CircleShape).background(if (active) Color.White else Color.White.copy(alpha = 0.14f)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, label, tint = if (active) Ink else Color.White, modifier = Modifier.size(23.dp)) }
+    ) { Icon(icon, label, tint = if (active) NavBg else Color.White, modifier = Modifier.size(23.dp)) }
 }
 
 @Composable
@@ -241,5 +248,67 @@ private fun BigBtn(icon: ImageVector, bg: Color, label: String, onClick: () -> U
         ) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(32.dp)) }
         Spacer(Modifier.height(8.dp))
         Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** 📞 Voice call — design lo laaga rings tho avatar */
+@Composable
+private fun VoiceCallLayout(st: CallState, name: String, status: String, onAccept: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().background(NavBg).statusBarsPadding().navigationBarsPadding()
+            .padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Lock, null, tint = NavMuted, modifier = Modifier.size(12.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("End-to-end encrypted", fontSize = 12.sp, color = NavMuted)
+        }
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Box(
+                Modifier.size(220.dp).border(2.dp, Color(0x2EC9BFFF), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(180.dp).border(2.dp, Color(0x52C9BFFF), CircleShape), contentAlignment = Alignment.Center) {
+                    Avatar(name, 140.dp)
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            Text(name, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (st.phase == Phase.CONNECTED) status.removePrefix("Encrypted · ") else status,
+                fontSize = 16.sp, color = if (st.phase == Phase.ENDED) Color(0xFFFCA5A5) else Color(0xFFC3C5D3),
+            )
+        }
+        when (st.phase) {
+            Phase.INCOMING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                BigBtn(Icons.Filled.CallEnd, EndRed, "Decline") { Calls.decline() }
+                BigBtn(Icons.Filled.Call, Color(0xFF16A34A), "Accept", onClick = onAccept)
+            }
+            Phase.ENDED -> Spacer(Modifier.height(76.dp))
+            else -> {
+                Row(Modifier.padding(bottom = 34.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                    GridBtn(Icons.AutoMirrored.Filled.VolumeUp, "Speaker", st.speaker) { Calls.toggleSpeaker() }
+                    GridBtn(if (st.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (st.muted) "Unmute" else "Mute", st.muted) { Calls.toggleMute() }
+                }
+                Box(
+                    Modifier.size(76.dp).clip(CircleShape).background(EndRed).clickable { Calls.hangup() },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Filled.CallEnd, "End call", tint = Color.White, modifier = Modifier.size(32.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GridBtn(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(64.dp).clip(CircleShape).background(if (active) Color.White else Color.White.copy(alpha = 0.12f)).clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, label, tint = if (active) NavBg else Color.White, modifier = Modifier.size(26.dp)) }
+        Spacer(Modifier.height(8.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
     }
 }

@@ -267,6 +267,138 @@ object Chat {
 
     suspend fun safetyCode(uid: String): String? = pubOf(uid)?.let { Crypto.safetyCode(it) }
 
+    // ---------- Settings (phone lo matrame) ----------
+
+    fun flag(key: String, def: Boolean): Boolean = prefs.getBoolean(key, def)
+    fun setFlag(key: String, v: Boolean) {
+        prefs.edit().putBoolean(key, v).apply()
+        db.bump()
+        if (key == "hide_seen") scope.launch { touchPresence() }
+    }
+    val readReceipts get() = flag("read_receipts", true)
+    val hideSeen get() = flag("hide_seen", false)
+
+    /** 0 = phone setting, 1 = light, 2 = dark */
+    var themeMode: Int
+        get() = prefs.getInt("theme", 0)
+        set(v) { prefs.edit().putInt("theme", v).apply() }
+
+    @Volatile var backgroundAt = 0L
+        private set
+
+    private fun mutedSet(): Set<String> = prefs.getStringSet("muted", emptySet()) ?: emptySet()
+    fun isMuted(peer: String) = peer in mutedSet()
+    fun setMuted(peer: String, muted: Boolean) {
+        val s = mutedSet().toMutableSet()
+        if (muted) s += peer else s -= peer
+        prefs.edit().putStringSet("muted", s).apply()
+        db.bump()
+    }
+
+    fun blockedList(): List<String> = blockedSet().toList()
+
+    /** Phone contacts lo ee number unda? */
+    fun inContacts(phone: String): Boolean {
+        if (phone.isEmpty()) return false
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return true
+        return try {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phone))
+            app.contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup._ID), null, null, null)?.use { it.count > 0 } ?: false
+        } catch (_: Exception) { true }
+    }
+
+    // ---------- Share: location / contact / audio file ----------
+
+    @SuppressLint("MissingPermission")
+    suspend fun currentLocation(): android.location.Location? = withContext(Dispatchers.IO) {
+        val lm = app.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+        val providers = lm.getProviders(true)
+        var best: android.location.Location? = null
+        for (p in providers) {
+            val l = try { lm.getLastKnownLocation(p) } catch (_: Exception) { null } ?: continue
+            if (best == null || l.time > best.time) best = l
+        }
+        if (best != null && System.currentTimeMillis() - best.time < 10 * 60_000L) return@withContext best
+        if (Build.VERSION.SDK_INT >= 30 && providers.isNotEmpty()) {
+            val p = if (android.location.LocationManager.GPS_PROVIDER in providers) android.location.LocationManager.GPS_PROVIDER else providers.first()
+            val fresh = kotlinx.coroutines.withTimeoutOrNull(15_000) {
+                kotlinx.coroutines.suspendCancellableCoroutine<android.location.Location?> { cont ->
+                    lm.getCurrentLocation(p, null, app.mainExecutor) { loc -> if (cont.isActive) cont.resumeWith(Result.success(loc)) }
+                }
+            }
+            if (fresh != null) return@withContext fresh
+        }
+        best
+    }
+
+    suspend fun shareLocation(peer: String, reply: Msg?): String? {
+        val l = currentLocation() ?: return "Location dorakaledu. GPS on chesi malli try cheyyandi"
+        val lat = "%.6f".format(java.util.Locale.US, l.latitude)
+        val lng = "%.6f".format(java.util.Locale.US, l.longitude)
+        send(peer, "📍 Naa location\nhttps://maps.google.com/?q=$lat,$lng", reply = reply)
+        return null
+    }
+
+    suspend fun shareContact(peer: String, contactUri: Uri, reply: Msg?): String? = withContext(Dispatchers.IO) {
+        try {
+            var name = ""
+            var id = ""
+            app.contentResolver.query(contactUri, arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) { id = c.getString(0); name = c.getString(1) ?: "" }
+            }
+            if (id.isEmpty()) return@withContext "Contact open avvaledu"
+            val nums = mutableListOf<String>()
+            app.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                ContactsContract.CommonDataKinds.Phone.CONTACT_ID + "=?", arrayOf(id), null
+            )?.use { c -> while (c.moveToNext()) c.getString(0)?.let { nums += it } }
+            send(peer, "👤 $name\n" + nums.distinct().joinToString("\n"), reply = reply)
+            null
+        } catch (e: Exception) { "Contact pampalekapoyam: ${e.message}" }
+    }
+
+    suspend fun sendAudioFile(peer: String, uri: Uri, reply: Msg?): String? = withContext(Dispatchers.IO) {
+        try {
+            if (Media.size(app, uri) > Media.MAX_VIDEO_BYTES) return@withContext "Audio 16 MB kanna chinnadi undali"
+            val mime = app.contentResolver.getType(uri) ?: "audio/mpeg"
+            val f = File(Media.dir(app), UUID.randomUUID().toString() + "." + (if (mime.contains("mpeg")) "mp3" else Media.ext(mime)))
+            app.contentResolver.openInputStream(uri)?.use { i -> f.outputStream().use { i.copyTo(it) } } ?: return@withContext "File open avvaledu"
+            send(peer, "", "audio", f.absolutePath, mime, Media.durationMs(f.absolutePath), reply)
+            null
+        } catch (e: Exception) { "Audio pampalekapoyam: ${e.message}" }
+    }
+
+    /** Status ki reply (chat lo vellutundi) */
+    fun replyToStatus(st: StatusItem, text: String) {
+        val quote = Msg(st.id, st.owner, false, if (st.type == "image") "📷 Status" + (if (st.text.isNotBlank()) ": ${st.text}" else "") else "Status: ${st.text}",
+            st.ts, 0, st.owner)
+        send(st.owner, text, reply = quote)
+    }
+
+    // ---------- Storage ----------
+
+    data class StorageInfo(val total: Long, val photos: Long, val videos: Long, val audio: Long, val db: Long, val byChat: List<Pair<String, Long>>)
+
+    suspend fun storageInfo(): StorageInfo = withContext(Dispatchers.IO) {
+        var photos = 0L; var videos = 0L; var audio = 0L
+        Media.dir(app).listFiles()?.forEach { f ->
+            when (f.extension.lowercase()) {
+                "jpg", "jpeg", "png", "webp" -> photos += f.length()
+                "m4a", "mp3", "aac", "ogg", "wav" -> audio += f.length()
+                else -> videos += f.length()
+            }
+        }
+        val dbSize = app.getDatabasePath("flikkchat.db").length()
+        val byChat = db.mediaByPeer().map { (peer, paths) -> peer to paths.sumOf { File(it).length() } }
+            .filter { it.second > 0 }.sortedByDescending { it.second }
+        StorageInfo(photos + videos + audio + dbSize, photos, videos, audio, dbSize, byChat)
+    }
+
+    fun clearChatMedia(peer: String) {
+        for (p in db.clearMedia(peer)) File(p).delete()
+    }
+
     // ---------- Favourites ----------
 
     private fun favSet(): Set<String> = prefs.getStringSet("favs", emptySet()) ?: emptySet()
@@ -456,14 +588,19 @@ object Chat {
         )
         val fresh = db.insertMsg(m, readByMe = isOpen || type == "sys")
         try {
-            if (type != "sys") sendReceipt(from, id, if (isOpen) 3 else 2, myUid)
+            if (type != "sys") sendReceipt(from, id, if (isOpen && readReceipts) 3 else 2, myUid)
             // Server nunchi teeseyi — data phone lo matrame
             ref.delete().await()
         } catch (_: Exception) {}
 
-        if (fresh && !isOpen && type != "sys") {
+        val wantNotify = if (group != null) flag("notify_groups", true) else flag("notify_msgs", true)
+        if (fresh && !isOpen && type != "sys" && wantNotify && !isMuted(peerKey)) {
             val title = db.peer(peerKey)?.name ?: "Flikkchat"
-            val body = if (group != null) "${nameOf(from)}: ${preview(m)}" else preview(m)
+            val body = when {
+                !flag("notify_preview", true) -> "Kotha message"
+                group != null -> "${nameOf(from)}: ${preview(m)}"
+                else -> preview(m)
+            }
             notifyMessage(peerKey, title, body)
         }
     }
@@ -706,7 +843,7 @@ object Chat {
         val unread = db.takeUnread(peer)
         val uid = me ?: return
         NotificationManagerCompat.from(app).cancel(peer.hashCode())
-        if (unread.isEmpty()) return
+        if (unread.isEmpty() || !readReceipts) return
         scope.launch {
             try {
                 val batch = fs.batch()
@@ -811,6 +948,7 @@ object Chat {
 
     fun setForeground(fg: Boolean) {
         foreground = fg
+        if (!fg) backgroundAt = System.currentTimeMillis()
         if (fg && loggedIn) {
             scope.launch {
                 touchPresence()
@@ -821,7 +959,7 @@ object Chat {
                 val uid = me ?: return@launch
                 try {
                     fs.collection("users").document(uid)
-                        .set(mapOf("lastActive" to System.currentTimeMillis() - ONLINE_WINDOW_MS), SetOptions.merge())
+                        .set(mapOf("lastActive" to if (hideSeen) 0L else System.currentTimeMillis() - ONLINE_WINDOW_MS), SetOptions.merge())
                 } catch (_: Exception) {}
             }
         }
@@ -830,7 +968,7 @@ object Chat {
     private fun touchPresence() {
         val uid = me ?: return
         fs.collection("users").document(uid)
-            .set(mapOf("lastActive" to System.currentTimeMillis()), SetOptions.merge())
+            .set(mapOf("lastActive" to if (hideSeen) 0L else System.currentTimeMillis()), SetOptions.merge())
     }
 
     fun typing(peer: String) {

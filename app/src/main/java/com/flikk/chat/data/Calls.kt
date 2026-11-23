@@ -173,6 +173,11 @@ object Calls {
                 try { call().document(id).update("state", "busy").await() } catch (_: Exception) {}
                 return@launch
             }
+            // Silence unknown callers: contacts lo lekapothe ring cheyyadu, missed ga log
+            if (Chat.flag("silence_unknown", false) && !Chat.inContacts(Chat.db.peer(from)?.phone ?: "")) {
+                Chat.db.logCall(CallLog(id, from, false, video, System.currentTimeMillis(), 0, true))
+                return@launch
+            }
             // Call inka ring avutunda?
             val doc = try { call().document(id).get().await() } catch (_: Exception) { null }
             if (doc == null || doc.getString("state") != "ringing") return@launch

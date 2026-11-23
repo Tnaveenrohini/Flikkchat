@@ -1,6 +1,10 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import android.provider.ContactsContract
+import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
+import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.material3.Tab
@@ -125,67 +129,6 @@ fun SetupScreen() {
     }
 }
 
-// ---------------- Login ----------------
-
-@Composable
-fun LoginScreen(onDone: () -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().imePadding().padding(28.dp),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Brand(36.sp)
-        Text("Made in India 🇮🇳 chat", color = Muted, fontSize = 15.sp)
-        Spacer(Modifier.height(36.dp))
-        OutlinedTextField(
-            value = name, onValueChange = { name = it },
-            label = { Text("Mee peru") }, singleLine = true,
-            modifier = Modifier.fillMaxWidth(), colors = fieldColors(),
-        )
-        Spacer(Modifier.height(14.dp))
-        OutlinedTextField(
-            value = phone, onValueChange = { phone = it.take(16) },
-            label = { Text("Phone number") }, singleLine = true,
-            prefix = { Text("+91 ") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            modifier = Modifier.fillMaxWidth(), colors = fieldColors(),
-        )
-        if (error != null) {
-            Spacer(Modifier.height(10.dp))
-            Text(error!!, color = Danger, fontSize = 13.sp)
-        }
-        Spacer(Modifier.height(24.dp))
-        Button(
-            onClick = {
-                busy = true; error = null
-                scope.launch {
-                    val raw = if (phone.trim().startsWith("+")) phone else "+91" + phone.filter { it.isDigit() }
-                    val err = Chat.register(name, raw)
-                    busy = false
-                    if (err == null) onDone() else error = err
-                }
-            },
-            enabled = !busy && name.isNotBlank() && phone.count { it.isDigit() } >= 10,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Accent),
-            shape = RoundedCornerShape(26.dp),
-        ) {
-            if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
-            else Text("Continue", fontSize = 16.sp)
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Mee chats mee phone lone save avutayi. Server lo store avvavu.",
-            color = Muted, fontSize = 12.sp,
-        )
-    }
-}
-
 @Composable
 fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = Accent, focusedLabelColor = Accent, cursorColor = Accent,
@@ -197,7 +140,7 @@ fun SectionLabel(t: String) {
         modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp))
 }
 
-// ---------------- Contacts ----------------
+// ---------------- New chat (contacts) ----------------
 
 @Composable
 fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup: () -> Unit) {
@@ -206,17 +149,15 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
         mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED)
     }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
-    var loading by remember { mutableStateOf(false) }
     var contacts by remember { mutableStateOf<List<Contact>?>(null) }
-    var reload by remember { mutableLongStateOf(0L) }
-
-    LaunchedEffect(granted, reload) {
-        if (!granted) { launcher.launch(Manifest.permission.READ_CONTACTS); return@LaunchedEffect }
-        loading = true
-        contacts = Chat.findContacts()
-        loading = false
+    var q by remember { mutableStateOf("") }
+    val addContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (granted) contacts = null
     }
-
+    LaunchedEffect(granted, contacts == null) {
+        if (!granted) { launcher.launch(Manifest.permission.READ_CONTACTS); return@LaunchedEffect }
+        if (contacts == null) contacts = Chat.findContacts()
+    }
     val invite = {
         val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
             Intent.EXTRA_TEXT,
@@ -224,182 +165,76 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
         )
         ctx.startActivity(Intent.createChooser(i, "Invite"))
     }
+    val shown = contacts.orEmpty().filter {
+        q.isBlank() || it.name.contains(q.trim(), true) || it.phone.filter { c -> c.isDigit() }.contains(q.filter { c -> c.isDigit() }.ifEmpty { "\u0000" })
+    }
 
-    Scaffold(
-        containerColor = Bg,
-        topBar = {
-            Header(
-                title = "Select contact",
-                subtitle = contacts?.let { "${it.size} on Flikkchat" },
-                onBack = onBack,
-                actions = { IconButton(onClick = { reload++ }) { Icon(Icons.Filled.Refresh, "Refresh") } },
-            )
-        },
-    ) { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-            item {
-                Row(
-                    Modifier.fillMaxWidth().clickable { openNewGroup() }.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(48.dp).clip(CircleShape).background(Accent), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Groups, null, tint = Color.White)
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Text("New group", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+    LazyColumn(Modifier.fillMaxSize().background(Bg)) {
+        item {
+            Row(
+                Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp)) }
+                Column {
+                    Text("New chat", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    Text(contacts?.let { "${it.size} contacts on Flikkchat" } ?: "Contacts chustunnam…", fontSize = 12.sp, color = Muted)
                 }
-                Row(
-                    Modifier.fillMaxWidth().clickable { invite() }.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(48.dp).clip(CircleShape).background(Accent), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.PersonAdd, null, tint = Color.White)
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Text("Invite friends", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                }
-                HorizontalDivider(color = Line)
             }
-            when {
-                !granted -> item {
-                    Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Friends ni chudataniki contacts permission kavali", color = Muted, textAlign = TextAlign.Center)
-                        Spacer(Modifier.height(12.dp))
-                        Button(onClick = { launcher.launch(Manifest.permission.READ_CONTACTS) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Accent)) { Text("Allow") }
-                    }
+            Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 10.dp)) { SearchPill(q, { q = it }, "Search name or number") }
+            ShortcutRow(Icons.Filled.GroupAdd, "New group", openNewGroup)
+            ShortcutRow(Icons.Filled.PersonAdd, "New contact") {
+                addContact.launch(Intent(Intent.ACTION_INSERT).setType(ContactsContract.Contacts.CONTENT_TYPE))
+            }
+            ShortcutRow(Icons.Filled.Link, "Invite with link") { invite() }
+            SectionLabel("Contacts on Flikkchat")
+        }
+        when {
+            !granted -> item {
+                Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Friends ni chudataniki contacts permission kavali", color = Muted, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(14.dp))
+                    PillButton("Allow contacts") { launcher.launch(Manifest.permission.READ_CONTACTS) }
                 }
-                loading -> item {
-                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Accent)
-                    }
-                }
-                contacts.isNullOrEmpty() -> item {
-                    Text(
-                        "Mee contacts lo inka evaru Flikkchat lo levu.\nPaina 'Invite friends' tho pilavandi!",
-                        color = Muted, textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(28.dp),
-                    )
-                }
-                else -> items(contacts!!, key = { it.uid }) { c ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { openChat(c.uid) }.padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Avatar(c.name)
-                        Spacer(Modifier.width(14.dp))
-                        Column {
-                            Text(c.name, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                            Text(c.phone, color = Muted, fontSize = 13.sp)
-                        }
+            }
+            contacts == null -> item {
+                Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }
+            }
+            shown.isEmpty() -> item {
+                Text(
+                    if (q.isNotBlank()) "\"$q\" dorakaledu" else "Mee contacts lo inka evaru Flikkchat lo levu.\nPaina 'Invite with link' tho pilavandi!",
+                    color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp,
+                    modifier = Modifier.fillMaxWidth().padding(28.dp),
+                )
+            }
+            else -> items(shown, key = { it.uid }) { c ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { openChat(c.uid) }.padding(horizontal = 20.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Avatar(c.name, 48.dp)
+                    Spacer(Modifier.width(14.dp))
+                    Column {
+                        Text(c.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)
+                        Text(c.phone, color = Muted, fontSize = 13.sp)
                     }
                 }
             }
         }
+        item { Spacer(Modifier.navigationBarsPadding().height(16.dp)) }
     }
 }
 
-// ---------------- Profile ----------------
-
 @Composable
-fun ProfileScreen(onBack: () -> Unit) {
-    var name by remember { mutableStateOf(Chat.myName) }
-    var about by remember { mutableStateOf(Chat.myAbout) }
-    var msg by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val ctx = LocalContext.current
-    var backupMsg by remember { mutableStateOf<String?>(null) }
-    var askRestore by remember { mutableStateOf(false) }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        if (uri != null) {
-            busy = true; backupMsg = "Backup avutundi..."
-            scope.launch {
-                val r = withContext(Dispatchers.IO) { Backup.export(ctx, uri) }
-                busy = false
-                backupMsg = r.fold({ "Backup ready ✅ ($it media files)" }, { "Backup fail: ${it.message}" })
-            }
+private fun ShortcutRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(48.dp).clip(CircleShape).background(Accent), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(22.dp))
         }
-    }
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            busy = true; backupMsg = "Restore avutundi..."
-            scope.launch {
-                val r = withContext(Dispatchers.IO) { Backup.restore(ctx, uri) }
-                busy = false
-                r.fold({ Backup.restartApp(ctx) }, { backupMsg = "Restore fail: ${it.message}" })
-            }
-        }
-    }
-    if (askRestore) {
-        AlertDialog(
-            onDismissRequest = { askRestore = false },
-            title = { Text("Restore backup?") },
-            text = { Text("Ippudu phone lo unna chats backup file lo unna chats tho replace avutayi. App restart avutundi.", color = Muted) },
-            confirmButton = {
-                TextButton(onClick = { askRestore = false; importLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
-                    Text("Choose file", color = Accent)
-                }
-            },
-            dismissButton = { TextButton(onClick = { askRestore = false }) { Text("Cancel", color = Muted) } },
-            containerColor = Surface,
-        )
-    }
-
-    Column(Modifier.fillMaxSize().background(Bg).imePadding()) {
-        Header(title = "Profile", onBack = onBack)
-        Column(
-            Modifier.padding(24.dp).verticalScroll(rememberScrollState()).navigationBarsPadding(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Avatar(name.ifBlank { "?" }, 110.dp)
-            Spacer(Modifier.height(24.dp))
-            OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true,
-                modifier = Modifier.fillMaxWidth(), colors = fieldColors())
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(about, { about = it.take(140) }, label = { Text("About") },
-                modifier = Modifier.fillMaxWidth(), colors = fieldColors())
-            Spacer(Modifier.height(12.dp))
-            Text("Phone: ${Chat.myPhone}", color = Muted, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(20.dp))
-            Button(
-                onClick = {
-                    busy = true
-                    scope.launch {
-                        msg = Chat.updateProfile(name, about) ?: "Saved ✅"
-                        busy = false
-                    }
-                },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                shape = RoundedCornerShape(26.dp),
-            ) { Text("Save") }
-            if (msg != null) { Spacer(Modifier.height(10.dp)); Text(msg!!, color = Muted) }
-
-            Spacer(Modifier.height(28.dp))
-            HorizontalDivider(color = Line)
-            Spacer(Modifier.height(16.dp))
-            Text("💾 Chat backup", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, modifier = Modifier.fillMaxWidth())
-            Text(
-                "Chats, photos, videos, voice annee okka file lo save avutayi. File picker lo Google Drive select chesthe Drive lo untundi.",
-                color = Muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = { exportLauncher.launch("Flikkchat-backup-" + java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date()) + ".zip") },
-                    enabled = !busy, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent), shape = RoundedCornerShape(12.dp),
-                ) { Text("Backup") }
-                Spacer(Modifier.width(10.dp))
-                Button(
-                    onClick = { askRestore = true },
-                    enabled = !busy, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Surface), shape = RoundedCornerShape(12.dp),
-                ) { Text("Restore", color = Ink) }
-            }
-            if (backupMsg != null) { Spacer(Modifier.height(10.dp)); Text(backupMsg!!, color = Muted) }
-        }
+        Spacer(Modifier.width(14.dp))
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)
     }
 }

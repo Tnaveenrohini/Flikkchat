@@ -1,6 +1,9 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.BasicTextField
@@ -151,6 +154,7 @@ fun ChatScreen(
     openGroupInfo: (String) -> Unit,
     openForward: (String) -> Unit,
     openImage: (String) -> Unit,
+    openContactInfo: (String) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -269,6 +273,31 @@ fun ChatScreen(
         }
     }
 
+    var showAttach by remember { mutableStateOf(false) }
+    val contactPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
+        if (uri != null) {
+            val reply = replyTo; replyTo = null
+            scope.launch { Chat.shareContact(peer, uri, reply)?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show() } }
+        }
+    }
+    val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            val reply = replyTo; replyTo = null
+            scope.launch { Chat.sendAudioFile(peer, uri, reply)?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show() } }
+        }
+    }
+    val locPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        if (res.values.any { it }) {
+            Toast.makeText(ctx, "Location teesukuntunnam…", Toast.LENGTH_SHORT).show()
+            val reply = replyTo; replyTo = null
+            scope.launch { Chat.shareLocation(peer, reply)?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show() } }
+        } else Toast.makeText(ctx, "Location permission kavali", Toast.LENGTH_SHORT).show()
+    }
+    val contactsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) contactPicker.launch(null) else Toast.makeText(ctx, "Contacts permission kavali", Toast.LENGTH_SHORT).show()
+    }
+
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().background(ChatBg).imePadding()) {
         val sel = selected
         if (sel != null) {
@@ -290,7 +319,7 @@ fun ChatScreen(
             Header(
                 title = name, subtitle = subtitle, onBack = onBack,
                 leading = { Avatar(name, 42.dp) },
-                onTitleClick = if (group) ({ openGroupInfo(gidOf(peer)) }) else null,
+                onTitleClick = if (group) ({ openGroupInfo(gidOf(peer)) }) else ({ openContactInfo(peer) }),
                 actions = {
                     if (timer > 0) Icon(Icons.Filled.Timer, "Disappearing", tint = Accent, modifier = Modifier.size(20.dp))
                     if (!group && !blocked) {
@@ -420,9 +449,9 @@ fun ChatScreen(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                    IconButton(onClick = {
-                        picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
-                    }, modifier = Modifier.size(40.dp, 44.dp)) { Icon(Icons.Filled.AttachFile, "Attach photo or video", tint = Muted, modifier = Modifier.size(21.dp)) }
+                    IconButton(onClick = { showAttach = true }, modifier = Modifier.size(40.dp, 44.dp)) {
+                        Icon(Icons.Filled.AttachFile, "Attach", tint = Muted, modifier = Modifier.size(21.dp))
+                    }
                     if (text.isEmpty()) IconButton(onClick = { takePhoto() }, modifier = Modifier.size(40.dp, 44.dp)) {
                         Icon(Icons.Outlined.PhotoCamera, "Camera", tint = Muted, modifier = Modifier.size(21.dp))
                     }
@@ -445,6 +474,25 @@ fun ChatScreen(
             }
         }
         }
+    }
+
+    if (showAttach) {
+        AttachSheet(
+            onClose = { showAttach = false },
+            onGallery = { showAttach = false; picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+            onCamera = { showAttach = false; takePhoto() },
+            onLocation = {
+                showAttach = false
+                locPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+            },
+            onContact = {
+                showAttach = false
+                if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) contactPicker.launch(null)
+                else contactsPermission.launch(Manifest.permission.READ_CONTACTS)
+            },
+            onAudio = { showAttach = false; audioPicker.launch("audio/*") },
+        )
+    }
     }
 
     if (askTimer) {
@@ -569,7 +617,7 @@ private fun SelectionBar(
 private fun DayChip(label: String) {
     Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
         Text(
-            label, fontSize = 12.sp, color = Color(0xFF4A4E60), fontWeight = FontWeight.SemiBold,
+            label, fontSize = 12.sp, color = DayInk, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(DayChipBg).padding(horizontal = 12.dp, vertical = 5.dp),
         )
     }
@@ -579,7 +627,7 @@ private fun DayChip(label: String) {
 private fun SysChip(text: String) {
     Box(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
         Text(
-            text, fontSize = 12.sp, color = Color(0xFF4A4E60), fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+            text, fontSize = 12.sp, color = DayInk, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
             modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(DayChipBg).padding(horizontal = 12.dp, vertical = 5.dp),
         )
     }
@@ -608,7 +656,7 @@ private fun Bubble(m: Msg, showSender: Boolean, selected: Boolean, onLongPress: 
                 .widthIn(max = 280.dp)
                 .then(if (mine) Modifier else Modifier.shadow(1.dp, shape))
                 .clip(shape)
-                .background(if (mine) Accent else Bg)
+                .background(if (mine) Accent else BubbleThem)
                 .padding(6.dp),
         ) {
             if (showSender) {
@@ -726,5 +774,55 @@ private fun AudioRow(m: Msg) {
         }
         Text(duration(if (playing) pos else m.dur), fontSize = 11.sp, color = if (mine) OnAccentMuted else Muted,
             modifier = Modifier.padding(start = 48.dp, top = 2.dp))
+    }
+}
+
+@Composable
+private fun AttachSheet(
+    onClose: () -> Unit, onGallery: () -> Unit, onCamera: () -> Unit,
+    onLocation: () -> Unit, onContact: () -> Unit, onAudio: () -> Unit,
+) {
+    BackHandler(onBack = onClose)
+    Box(Modifier.fillMaxSize().background(Color(0x7314161F)).clickable(onClick = onClose)) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)).background(BubbleThem)
+                .clickable(enabled = false) {}
+                .navigationBarsPadding().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 34.dp),
+        ) {
+            Box(Modifier.align(Alignment.CenterHorizontally).size(40.dp, 5.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFFD6D4E0)))
+            Spacer(Modifier.height(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Share", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.weight(1f))
+                Box(Modifier.size(40.dp).clip(CircleShape).background(Surface).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Close, "Close", tint = Ink, modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            val items = listOf(
+                Triple(Icons.Filled.Image, "Gallery", Color(0xFFE7E3FF) to Color(0xFF3A20C2)) to onGallery,
+                Triple(Icons.Outlined.PhotoCamera, "Camera", Color(0xFFFCE1F0) to Color(0xFF9D174D)) to onCamera,
+                Triple(Icons.Filled.LocationOn, "Location", Color(0xFFD7F5EC) to Color(0xFF0F5E4A)) to onLocation,
+                Triple(Icons.Filled.Person, "Contact", Color(0xFFFFF1C7) to Color(0xFF854D0E)) to onContact,
+                Triple(Icons.Filled.Headphones, "Audio", Color(0xFFFFE4D6) to Color(0xFF9A3412)) to onAudio,
+            )
+            items.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(bottom = 18.dp)) {
+                    row.forEach { (t, action) ->
+                        Column(
+                            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable(onClick = action).padding(vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(Modifier.size(60.dp).clip(RoundedCornerShape(20.dp)).background(t.third.first), contentAlignment = Alignment.Center) {
+                                Icon(t.first, null, tint = t.third.second, modifier = Modifier.size(26.dp))
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(t.second, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
+                        }
+                    }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
     }
 }

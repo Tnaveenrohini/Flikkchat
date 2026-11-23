@@ -1,6 +1,10 @@
 package com.flikk.chat.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
@@ -100,45 +104,50 @@ private fun PickRow(name: String, sub: String, checked: Boolean, onClick: () -> 
 fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
-    var picked by remember { mutableStateOf(setOf<String>()) }
+    var picked by remember { mutableStateOf(listOf<Contact>()) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val contacts by produceState<List<Contact>?>(initialValue = null) { value = Chat.findContacts() }
 
-    Scaffold(
-        containerColor = Bg,
-        topBar = {
-            Header(title = "New group", subtitle = if (picked.isEmpty()) "Members select cheyyandi" else "${picked.size} selected", onBack = onBack)
-        },
-        floatingActionButton = {
-            if (name.isNotBlank() && picked.isNotEmpty()) {
-                FloatingActionButton(
-                    onClick = {
-                        if (busy) return@FloatingActionButton
-                        busy = true; error = null
-                        scope.launch {
-                            val peer = Chat.createGroup(name, picked.toList())
-                            busy = false
-                            if (peer != null) onCreated(peer) else error = "Group create avvaledu. Internet / Firestore rules check cheyyandi"
-                        }
-                    },
-                    containerColor = Accent, contentColor = Color.White,
-                ) {
-                    if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
-                    else Icon(Icons.Filled.Check, "Create")
-                }
-            }
-        },
-    ) { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad)) {
+    Box(Modifier.fillMaxSize().background(Bg)) {
+        LazyColumn(Modifier.fillMaxSize()) {
             item {
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it.take(50) },
-                    label = { Text("Group name") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp), colors = fieldColors(),
-                )
-                error?.let { Text(it, color = Danger, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                SectionLabel("Contacts")
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp)) }
+                    Column {
+                        Text("New group", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        Text(if (picked.isEmpty()) "Members select cheyyandi" else "${picked.size} selected", fontSize = 12.sp, color = Muted)
+                    }
+                }
+                Box(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp)) {
+                    BoxField("Group name", name, { name = it.take(50) }, focused = name.isEmpty())
+                }
+                if (picked.isNotEmpty()) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        items(picked, key = { "p" + it.uid }) { c ->
+                            Column(Modifier.width(60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box {
+                                    Avatar(c.name, 54.dp)
+                                    Box(
+                                        Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(Bg).padding(2.dp)
+                                            .clip(CircleShape).background(Muted).clickable { picked = picked - c },
+                                        contentAlignment = Alignment.Center,
+                                    ) { Icon(Icons.Filled.Close, "Remove ${c.name}", tint = Color.White, modifier = Modifier.size(12.dp)) }
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                Text(c.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Divider))
+                error?.let { Text(it, color = Danger, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
             }
             val list = contacts
             when {
@@ -146,11 +155,41 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
                     Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }
                 }
                 list.isEmpty() -> item {
-                    Text("Flikkchat lo inka contacts levu", color = Muted, modifier = Modifier.padding(16.dp))
+                    Text("Flikkchat lo inka contacts levu", color = Muted, modifier = Modifier.padding(20.dp))
                 }
                 else -> items(list, key = { it.uid }) { c ->
-                    PickRow(c.name, c.phone, c.uid in picked) {
-                        picked = if (c.uid in picked) picked - c.uid else picked + c.uid
+                    val on = picked.any { it.uid == c.uid }
+                    Row(
+                        Modifier.fillMaxWidth().clickable { picked = if (on) picked.filter { it.uid != c.uid } else picked + c }
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Avatar(c.name, 48.dp)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(c.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)
+                            Text(c.phone, color = Muted, fontSize = 13.sp)
+                        }
+                        Box(
+                            Modifier.size(26.dp).clip(CircleShape)
+                                .then(if (on) Modifier.background(Accent) else Modifier.border(2.dp, Line, CircleShape)),
+                            contentAlignment = Alignment.Center,
+                        ) { if (on) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(110.dp)) }
+        }
+        if (name.isNotBlank() && picked.isNotEmpty()) {
+            Box(
+                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(20.dp)
+            ) {
+                PillButton("Create group", busy = busy) {
+                    busy = true; error = null
+                    scope.launch {
+                        val peer = Chat.createGroup(name, picked.map { it.uid })
+                        busy = false
+                        if (peer != null) onCreated(peer) else error = "Group create avvaledu. Internet / Firestore rules check cheyyandi"
                     }
                 }
             }

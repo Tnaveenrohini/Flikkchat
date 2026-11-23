@@ -202,6 +202,21 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
         return paths
     }
 
+    fun mediaByPeer(): Map<String, List<String>> = readableDatabase.rawQuery(
+        "SELECT peer, media FROM messages WHERE media!=''", null
+    ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0) to c.getString(1)) } }
+        .groupBy({ it.first }, { it.second })
+
+    /** Chat lo photos/videos/voice delete — paths return */
+    fun clearMedia(peer: String): List<String> {
+        val paths = readableDatabase.rawQuery("SELECT media FROM messages WHERE peer=? AND media!=''", arrayOf(peer))
+            .use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+        val cv = ContentValues().apply { put("media", "") }
+        writableDatabase.update("messages", cv, "peer=? AND media!=''", arrayOf(peer))
+        bump()
+        return paths
+    }
+
     fun checkpoint() {
         try { readableDatabase.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { it.moveToFirst() } } catch (_: Exception) {}
     }

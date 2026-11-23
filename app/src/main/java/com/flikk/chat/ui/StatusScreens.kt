@@ -1,6 +1,11 @@
 package com.flikk.chat.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -120,6 +125,7 @@ fun TextStatusScreen(onDone: () -> Unit) {
 
 @Composable
 fun StatusViewer(owner: String, onDone: () -> Unit) {
+    val ctx = LocalContext.current
     val version by Chat.db.changes.collectAsState()
     val items by produceState<List<StatusItem>?>(initialValue = null, version) {
         value = withContext(Dispatchers.IO) { Chat.db.statuses().filter { it.owner == owner } }
@@ -127,11 +133,13 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
     val list = items ?: return
     if (list.isEmpty()) { LaunchedEffect(Unit) { onDone() }; return }
     val isMine = owner == Chat.me
+    val name = if (isMine) Chat.myName else Chat.nameOf(owner)
 
     var index by remember { mutableIntStateOf(if (isMine) 0 else list.indexOfFirst { !it.seen }.coerceAtLeast(0)) }
     var progress by remember { mutableFloatStateOf(0f) }
     var paused by remember { mutableStateOf(false) }
     var showViews by remember { mutableStateOf(false) }
+    var reply by remember { mutableStateOf("") }
     val cur = list[index.coerceIn(0, list.lastIndex)]
 
     LaunchedEffect(cur.id) {
@@ -139,14 +147,40 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
         progress = 0f
         while (progress < 1f) {
             delay(50)
-            if (!paused && !showViews) progress += 50f / 5000f
+            if (!paused && !showViews && reply.isEmpty()) progress += 50f / 5000f
         }
         if (index < list.lastIndex) index++ else onDone()
     }
 
-    Box(
-        Modifier.fillMaxSize().background(if (cur.type == "text") Color(cur.color.takeIf { it != 0L } ?: 0xFF4B2FE0) else Color.Black)
-            .pointerInput(cur.id) {
+    val bg = if (cur.type == "text") Color(cur.color.takeIf { it != 0L } ?: 0xFF4B2FE0) else Color(0xFF3A2F6B)
+    Column(Modifier.fillMaxSize().background(bg).imePadding()) {
+        // Progress bars
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 12.dp, top = 16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            list.forEachIndexed { i, _ ->
+                LinearProgressIndicator(
+                    progress = { if (i < index) 1f else if (i == index) progress.coerceIn(0f, 1f) else 0f },
+                    color = Color.White, trackColor = Color.White.copy(alpha = 0.35f), drawStopIndicator = {},
+                    modifier = Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)),
+                )
+            }
+        }
+        // Header
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Avatar(name, 40.dp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(if (isMine) "My status" else name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(longTime(cur.ts), color = Color(0xFFD9D3F5), fontSize = 12.sp)
+            }
+            if (isMine) IconButton(onClick = {
+                Chat.deleteMyStatus(cur)
+                if (index > 0 && index >= list.lastIndex) index--
+            }) { Icon(Icons.Filled.Delete, "Delete status", tint = Color.White) }
+            IconButton(onClick = onDone) { Icon(Icons.Filled.Close, "Close status", tint = Color.White) }
+        }
+        // Content (tap left/right)
+        Box(
+            Modifier.weight(1f).fillMaxWidth().pointerInput(cur.id) {
                 detectTapGestures(
                     onPress = { paused = true; tryAwaitRelease(); paused = false },
                     onTap = { o ->
@@ -155,57 +189,36 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
                     },
                 )
             },
-    ) {
-        if (cur.type == "text") {
-            Text(
-                cur.text, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.Center).padding(28.dp),
-            )
-        } else {
-            AsyncImage(model = File(cur.media), contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-            if (cur.text.isNotBlank()) Text(
-                cur.text, color = Color.White, fontSize = 16.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.5f))
-                    .navigationBarsPadding().padding(16.dp).padding(bottom = if (isMine) 40.dp else 0.dp),
-            )
-        }
-
-        Column(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                list.forEachIndexed { i, _ ->
-                    LinearProgressIndicator(
-                        progress = { if (i < index) 1f else if (i == index) progress.coerceIn(0f, 1f) else 0f },
-                        color = Color.White, trackColor = Color.White.copy(alpha = 0.35f),
-                        modifier = Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (cur.type == "text") {
+                Text(cur.text, color = Color.White, fontSize = 30.sp, lineHeight = 38.sp, fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center, modifier = Modifier.padding(30.dp))
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 30.dp)) {
+                    AsyncImage(
+                        model = File(cur.media), contentDescription = "Status photo", contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(300f / 360f).clip(RoundedCornerShape(24.dp)).background(Color(0xFF241E3D)),
                     )
+                    if (cur.text.isNotBlank()) {
+                        Spacer(Modifier.height(16.dp))
+                        Text(cur.text, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, lineHeight = 25.sp)
+                    }
                 }
-            }
-            Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onDone) { Icon(Icons.Filled.Close, "Close", tint = Color.White) }
-                Avatar(if (isMine) Chat.myName else Chat.nameOf(owner), 38.dp)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(if (isMine) "My status" else Chat.nameOf(owner), color = Color.White, fontWeight = FontWeight.SemiBold)
-                    Text(listTime(cur.ts), color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
-                }
-                if (isMine) IconButton(onClick = {
-                    Chat.deleteMyStatus(cur)
-                    if (index > 0 && index >= list.lastIndex) index--
-                }) { Icon(Icons.Filled.Delete, "Delete", tint = Color.White) }
             }
         }
-
+        // Bottom
         if (isMine) {
             val views = remember(cur.id, version) { Chat.db.views(cur.id) }
             Row(
-                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp)
-                    .clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = 0.45f))
-                    .clickable { showViews = true }.padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier.align(Alignment.CenterHorizontally).navigationBarsPadding().padding(bottom = 24.dp)
+                    .clip(RoundedCornerShape(20.dp)).background(Color.White.copy(alpha = 0.16f))
+                    .clickable { showViews = true }.padding(horizontal = 18.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.Visibility, null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("${views.size}", color = Color.White)
+                Text("${views.size} views", color = Color.White, fontWeight = FontWeight.SemiBold)
             }
             if (showViews) {
                 AlertDialog(
@@ -218,14 +231,48 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
                                 Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Avatar(Chat.nameOf(u), 32.dp)
                                     Spacer(Modifier.width(10.dp))
-                                    Text(Chat.nameOf(u))
+                                    Text(Chat.nameOf(u), color = Ink)
                                 }
                             }
                         }
                     },
                     confirmButton = { TextButton(onClick = { showViews = false }) { Text("OK", color = Accent) } },
-                    containerColor = Surface,
+                    containerColor = BubbleThem,
                 )
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 28.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier.weight(1f).height(50.dp).clip(RoundedCornerShape(25.dp))
+                        .border(1.5.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(25.dp)).padding(horizontal = 18.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (reply.isEmpty()) Text("Reply…", color = Color.White.copy(alpha = 0.75f), fontSize = 15.sp)
+                    BasicTextField(
+                        value = reply, onValueChange = { reply = it }, singleLine = true,
+                        textStyle = TextStyle(fontFamily = Jakarta, fontSize = 15.sp, color = Color.White),
+                        cursorBrush = SolidColor(Color.White), modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    Modifier.size(50.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.16f)).clickable {
+                        if (reply.isNotBlank()) {
+                            Chat.replyToStatus(cur, reply.trim()); reply = ""
+                            Toast.makeText(ctx, "Reply pampam ✅", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Chat.replyToStatus(cur, "❤️")
+                            Toast.makeText(ctx, "❤️ pampam", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (reply.isNotBlank()) Icon(Icons.AutoMirrored.Filled.Send, "Send reply", tint = Color.White, modifier = Modifier.size(22.dp))
+                    else Icon(Icons.Filled.FavoriteBorder, "Like status", tint = Color.White, modifier = Modifier.size(22.dp))
+                }
             }
         }
     }

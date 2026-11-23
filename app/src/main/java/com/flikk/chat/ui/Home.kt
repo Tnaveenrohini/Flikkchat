@@ -176,7 +176,7 @@ fun HomeScreen(
 private fun BottomNav(tab: Int, onSelect: (Int) -> Unit, modifier: Modifier) {
     Row(
         modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 18.dp).fillMaxWidth().height(68.dp)
-            .clip(RoundedCornerShape(34.dp)).background(Ink).padding(horizontal = 8.dp),
+            .clip(RoundedCornerShape(34.dp)).background(if (palette.dark) Surface else NavBg).padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -288,7 +288,7 @@ private fun ChatsTab(
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("New group") }, onClick = { menu = false; openNewGroup() })
                             DropdownMenuItem(text = { Text("Starred messages") }, onClick = { menu = false; openStarred() })
-                            DropdownMenuItem(text = { Text("Profile & backup") }, onClick = { menu = false; openProfile() })
+                            DropdownMenuItem(text = { Text("Settings") }, onClick = { menu = false; openProfile() })
                         }
                     }
                 }

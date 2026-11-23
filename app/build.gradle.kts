@@ -20,8 +20,8 @@ android {
         applicationId = "com.flikk.chat"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.7.0"
+        versionCode = 8
+        versionName = "0.8.0"
         // Phones ki matrame (APK size takkuva)
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
@@ -66,6 +66,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
+    implementation("androidx.biometric:biometric:1.1.0")
 
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.ui:ui")

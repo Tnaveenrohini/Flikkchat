@@ -26,6 +26,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,16 +51,51 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-// ---------- Flikkchat design tokens ----------
-val Accent = Color(0xFF4B2FE0)
-val AccentDeep = Color(0xFF3A20C2)
-val AccentSoft = Color(0xFFEEEAFF)
-val Ink = Color(0xFF14161F)
-val Bg = Color(0xFFFFFFFF)
-val ChatBg = Color(0xFFF6F5FB)
-val Surface = Color(0xFFF3F2F8)
-val Line = Color(0xFFE3E1EC)
-val Muted = Color(0xFF5F6375)
+// ---------- Flikkchat design tokens (light + dark) ----------
+data class Palette(
+    val dark: Boolean,
+    val accent: Color, val accentDeep: Color, val accentSoft: Color,
+    val ink: Color, val bg: Color, val chatBg: Color, val surface: Color, val line: Color,
+    val muted: Color, val bubbleThem: Color, val dayChip: Color, val dayInk: Color,
+    val e2eBg: Color, val e2eInk: Color, val divider: Color,
+)
+
+val LightPalette = Palette(
+    dark = false,
+    accent = Color(0xFF4B2FE0), accentDeep = Color(0xFF3A20C2), accentSoft = Color(0xFFEEEAFF),
+    ink = Color(0xFF14161F), bg = Color(0xFFFFFFFF), chatBg = Color(0xFFF6F5FB), surface = Color(0xFFF3F2F8),
+    line = Color(0xFFE3E1EC), muted = Color(0xFF5F6375), bubbleThem = Color(0xFFFFFFFF),
+    dayChip = Color(0xFFE9E7F2), dayInk = Color(0xFF4A4E60),
+    e2eBg = Color(0xFFFFF6DB), e2eInk = Color(0xFF6B4E00), divider = Color(0xFFECEAF3),
+)
+
+val DarkPalette = Palette(
+    dark = true,
+    accent = Color(0xFF6D55F5), accentDeep = Color(0xFFB9ABFF), accentSoft = Color(0xFF2A2550),
+    ink = Color(0xFFF1F0F7), bg = Color(0xFF0F1117), chatBg = Color(0xFF0B0D12), surface = Color(0xFF1C1F2B),
+    line = Color(0xFF2C2F3D), muted = Color(0xFFA9ACBD), bubbleThem = Color(0xFF1C1F2B),
+    dayChip = Color(0xFF1C1F2B), dayInk = Color(0xFFC3C5D3),
+    e2eBg = Color(0xFF2B2412), e2eInk = Color(0xFFF5D78A), divider = Color(0xFF1C1F2B),
+)
+
+/** Ippati theme. Activity / Settings marchinappudu matrame set avutundi (composition lo kaadu). */
+var palette by mutableStateOf(LightPalette)
+
+val Accent get() = palette.accent
+val AccentDeep get() = palette.accentDeep
+val AccentSoft get() = palette.accentSoft
+val Ink get() = palette.ink
+val Bg get() = palette.bg
+val ChatBg get() = palette.chatBg
+val Surface get() = palette.surface
+val Line get() = palette.line
+val Muted get() = palette.muted
+val BubbleThem get() = palette.bubbleThem
+val DayChipBg get() = palette.dayChip
+val DayInk get() = palette.dayInk
+val E2eBg get() = palette.e2eBg
+val E2eInk get() = palette.e2eInk
+val Divider get() = palette.divider
 val NavMuted = Color(0xFFA9ACBD)
 val Online = Color(0xFF15803D)
 val OnlineDot = Color(0xFF16A34A)
@@ -64,9 +103,7 @@ val Danger = Color(0xFFC2410C)
 val EndRed = Color(0xFFDC2626)
 val ReadMint = Color(0xFF9EF0C9)
 val OnAccentMuted = Color(0xFFE4DEFF)
-val DayChipBg = Color(0xFFE9E7F2)
-val E2eBg = Color(0xFFFFF6DB)
-val E2eInk = Color(0xFF6B4E00)
+val NavBg = Color(0xFF14161F)
 
 @OptIn(ExperimentalTextApi::class)
 private fun jakarta(w: Int) = Font(
@@ -82,7 +119,12 @@ fun FlikkTheme(content: @Composable () -> Unit) {
     val base = Typography()
     fun TextStyle.j() = copy(fontFamily = Jakarta)
     MaterialTheme(
-        colorScheme = lightColorScheme(
+        colorScheme = if (palette.dark) darkColorScheme(
+            primary = Accent, onPrimary = Color.White, secondary = Accent,
+            background = Bg, onBackground = Ink, surface = Bg, onSurface = Ink,
+            surfaceVariant = Surface, onSurfaceVariant = Muted, outline = Line,
+            surfaceContainer = Surface, surfaceContainerHigh = Surface,
+        ) else lightColorScheme(
             primary = Accent,
             onPrimary = Color.White,
             secondary = Accent,
@@ -152,7 +194,7 @@ fun Header(
             }
             actions()
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFECEAF3)))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Divider))
     }
 }
 
