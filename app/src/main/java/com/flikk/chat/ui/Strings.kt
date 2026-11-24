@@ -481,6 +481,15 @@ private fun te(): Map<String, String> = hashMapOf(
     "Verify your number" to "మీ నంబర్ వెరిఫై చేయండి",
     "Double Bubble now checks every number with an SMS code. This keeps your account safe. Your chats stay as they are." to "Double Bubble ఇప్పుడు ప్రతి నంబర్‌ని SMS కోడ్‌తో చెక్ చేస్తుంది. దీని వల్ల మీ అకౌంట్ సురక్షితంగా ఉంటుంది. మీ చాట్స్ అలాగే ఉంటాయి.",
     "Send code" to "కోడ్ పంపు",
+    "Verifying your number" to "మీ నంబర్ వెరిఫై అవుతోంది",
+    "We send one SMS from this phone to {0}. If it arrives here, your number is verified. Normal SMS charges may apply." to "ఈ ఫోన్ నుంచి {0} కి ఒక SMS పంపుతాము. అది ఇక్కడికే వస్తే మీ నంబర్ వెరిఫై అవుతుంది. సాధారణ SMS ఛార్జీలు పడవచ్చు.",
+    "Waiting for the SMS… {0}s" to "SMS కోసం ఎదురుచూస్తోంది… {0}s",
+    "Number verified ✅" to "నంబర్ వెరిఫై అయింది ✅",
+    "SMS did not arrive. Check that the number is the SIM in this phone and you have SMS balance." to "SMS రాలేదు. ఈ నంబర్ SIM ఇదే ఫోన్‌లో ఉందో, SMS బ్యాలెన్స్ ఉందో చూడండి.",
+    "Try again" to "మళ్ళీ ప్రయత్నించు",
+    "Wrong number? Go back and change it." to "నంబర్ తప్పా? వెనక్కి వెళ్ళి మార్చండి.",
+    "Allow SMS permission to verify your number" to "నంబర్ వెరిఫై చేయడానికి SMS అనుమతి ఇవ్వండి",
+    "Could not send SMS from this phone. Check SIM and SMS balance." to "ఈ ఫోన్ నుంచి SMS పంపలేకపోయాం. SIM, SMS బ్యాలెన్స్ చూడండి.",
 )
 
 private fun ta(): Map<String, String> = hashMapOf(
@@ -957,6 +966,15 @@ private fun ta(): Map<String, String> = hashMapOf(
     "Verify your number" to "உங்கள் எண்ணை சரிபார்க்கவும்",
     "Double Bubble now checks every number with an SMS code. This keeps your account safe. Your chats stay as they are." to "Double Bubble இப்போது ஒவ்வொரு எண்ணையும் SMS குறியீட்டுடன் சரிபார்க்கிறது. இது உங்கள் கணக்கை பாதுகாப்பாக வைக்கும். உங்கள் உரையாடல்கள் அப்படியே இருக்கும்.",
     "Send code" to "குறியீட்டை அனுப்பு",
+    "Verifying your number" to "உங்கள் எண் சரிபார்க்கப்படுகிறது",
+    "We send one SMS from this phone to {0}. If it arrives here, your number is verified. Normal SMS charges may apply." to "இந்த போனிலிருந்து {0} க்கு ஒரு SMS அனுப்புவோம். அது இங்கே வந்தால் உங்கள் எண் சரிபார்க்கப்படும். சாதாரண SMS கட்டணம் இருக்கலாம்.",
+    "Waiting for the SMS… {0}s" to "SMS க்காக காத்திருக்கிறது… {0}s",
+    "Number verified ✅" to "எண் சரிபார்க்கப்பட்டது ✅",
+    "SMS did not arrive. Check that the number is the SIM in this phone and you have SMS balance." to "SMS வரவில்லை. இந்த எண்ணின் SIM இந்த போனில் உள்ளதா, SMS இருப்பு உள்ளதா என பாருங்கள்.",
+    "Try again" to "மீண்டும் முயற்சி",
+    "Wrong number? Go back and change it." to "தவறான எண்ணா? பின் சென்று மாற்றவும்.",
+    "Allow SMS permission to verify your number" to "எண்ணை சரிபார்க்க SMS அனுமதி தாருங்கள்",
+    "Could not send SMS from this phone. Check SIM and SMS balance." to "இந்த போனிலிருந்து SMS அனுப்ப முடியவில்லை. SIM, SMS இருப்பை பாருங்கள்.",
 )
 
 private fun hi(): Map<String, String> = hashMapOf(
@@ -1433,4 +1451,13 @@ private fun hi(): Map<String, String> = hashMapOf(
     "Verify your number" to "अपना नंबर वेरिफ़ाई करें",
     "Double Bubble now checks every number with an SMS code. This keeps your account safe. Your chats stay as they are." to "Double Bubble अब हर नंबर को SMS कोड से जाँचता है। इससे आपका खाता सुरक्षित रहता है। आपकी चैट्स वैसी ही रहेंगी।",
     "Send code" to "कोड भेजें",
+    "Verifying your number" to "आपका नंबर वेरिफ़ाई हो रहा है",
+    "We send one SMS from this phone to {0}. If it arrives here, your number is verified. Normal SMS charges may apply." to "हम इस फ़ोन से {0} पर एक SMS भेजेंगे। अगर वह यहीं आ गया तो आपका नंबर वेरिफ़ाई हो जाएगा। सामान्य SMS शुल्क लग सकता है।",
+    "Waiting for the SMS… {0}s" to "SMS का इंतज़ार… {0}s",
+    "Number verified ✅" to "नंबर वेरिफ़ाई हो गया ✅",
+    "SMS did not arrive. Check that the number is the SIM in this phone and you have SMS balance." to "SMS नहीं आया। देखें कि इस नंबर का SIM इसी फ़ोन में है और SMS बैलेंस है।",
+    "Try again" to "फिर कोशिश करें",
+    "Wrong number? Go back and change it." to "गलत नंबर? वापस जाकर बदलें।",
+    "Allow SMS permission to verify your number" to "नंबर वेरिफ़ाई करने के लिए SMS अनुमति दें",
+    "Could not send SMS from this phone. Check SIM and SMS balance." to "इस फ़ोन से SMS नहीं भेज सके। SIM और SMS बैलेंस देखें।",
 )

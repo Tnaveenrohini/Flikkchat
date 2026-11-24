@@ -119,6 +119,12 @@ object Chat {
     /** Firebase lo phone number OTP tho verify ayyinda? */
     val phoneVerified: Boolean get() = !auth.currentUser?.phoneNumber.isNullOrEmpty()
 
+    /**
+     * Free mode: Firebase SMS (Blaze) badulu self-SMS verification. Login gate ledu.
+     * Firebase Phone Auth ki maaralante ee flag true cheyyandi.
+     */
+    const val FIREBASE_OTP = false
+
     // ---------- 📱 Real OTP (Firebase Phone Auth) ----------
 
     interface OtpListener {
@@ -233,13 +239,19 @@ object Chat {
     /** null = success, lekapothe error message */
     suspend fun register(name: String, rawPhone: String, pin: String? = null): String? = withContext(Dispatchers.IO) {
         if (name.isBlank()) return@withContext "Enter your name"
+        val phone = normalize(rawPhone) ?: return@withContext "Enter a valid phone number"
         try {
-            // OTP tho verify ayina user matrame
-            val user = auth.currentUser
-            val verified = user?.phoneNumber
-            if (user == null || verified.isNullOrEmpty()) return@withContext "Verify your phone number first"
-            val phone = normalize(verified) ?: normalize(rawPhone) ?: return@withContext "Enter a valid phone number"
-            val uid = user.uid
+            val user = auth.currentUser ?: try {
+                withTimeout(20_000) { auth.signInAnonymously().await().user }
+            } catch (e: TimeoutCancellationException) {
+                return@withContext "Internet is slow, please try again"
+            } catch (e: Exception) {
+                val m = e.message ?: ""
+                return@withContext if (m.contains("ADMIN_ONLY", true) || m.contains("disabled", true) || m.contains("CONFIGURATION_NOT_FOUND", true))
+                    "Enable Authentication → Anonymous in Firebase"
+                else "Login error: $m"
+            }
+            val uid = user?.uid ?: return@withContext "Login failed, please try again"
             if (!pinOkFor(phone, uid, pin)) return@withContext if (pin == null) PIN_REQUIRED else "Wrong PIN"
             // Firestore database lekapothe write eppatiki complete avvadu — timeout pettam
             val ok = withTimeoutOrNull(20_000) {
@@ -297,7 +309,7 @@ object Chat {
     @Synchronized
     fun start() {
         if (started || !ready) return
-        if (!phoneVerified) return
+        if (FIREBASE_OTP && !phoneVerified) return
         val uid = me ?: return
         started = true
 

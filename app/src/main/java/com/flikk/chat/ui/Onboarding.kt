@@ -1,5 +1,6 @@
 package com.flikk.chat.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.background
@@ -416,5 +417,88 @@ fun VerifyNumberGate(onVerify: (String) -> Unit) {
         Text(phone, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
         Spacer(Modifier.weight(1f))
         PillButton(tr("Send code"), enabled = phone.isNotEmpty()) { onVerify(phone) }
+    }
+}
+
+// ---------------- Free number verification (self SMS) ----------------
+
+@Composable
+fun SmsVerifyScreen(phone: String, onBack: () -> Unit, onVerified: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val code = rememberSaveable { com.flikk.chat.data.SelfSms.newCode() }
+    var typed by rememberSaveable { mutableStateOf("") }
+    var state by remember { mutableIntStateOf(0) } // 0 idle, 1 waiting, 2 done, 3 failed
+    var error by remember { mutableStateOf<String?>(null) }
+    var wait by remember { mutableIntStateOf(0) }
+    var done by remember { mutableStateOf(false) }
+
+    fun ok() {
+        if (done) return
+        done = true; state = 2
+        com.flikk.chat.data.SelfSms.stop(ctx)
+        onVerified()
+    }
+    fun start() {
+        error = null; state = 1; wait = 60
+        com.flikk.chat.data.SelfSms.listen(ctx, code) { typed = it; ok() }
+        com.flikk.chat.data.SelfSms.send(ctx, phone, code)?.let { error = tr(it); state = 3 }
+    }
+    val perms = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        if (res.values.all { it }) start()
+        else { state = 3; error = tr("Allow SMS permission to verify your number") }
+    }
+    fun begin() = perms.launch(arrayOf(android.Manifest.permission.SEND_SMS, android.Manifest.permission.RECEIVE_SMS))
+    LaunchedEffect(Unit) { begin() }
+    LaunchedEffect(state) {
+        if (state == 1) {
+            while (wait > 0 && state == 1) { kotlinx.coroutines.delay(1000); wait-- }
+            if (state == 1) { state = 3; error = tr("SMS did not arrive. Check that the number is the SIM in this phone and you have SMS balance.") }
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { com.flikk.chat.data.SelfSms.stop(ctx) } }
+
+    Column(
+        Modifier.fillMaxSize().background(Bg).statusBarsPadding().navigationBarsPadding().imePadding()
+            .padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 34.dp),
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.offset(x = (-10).dp)) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.height(22.dp))
+        Text(tr("Verifying your number"), fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.8).sp, color = Ink)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            tr("We send one SMS from this phone to {0}. If it arrives here, your number is verified. Normal SMS charges may apply.", phone),
+            fontSize = 15.sp, lineHeight = 22.sp, color = Muted,
+        )
+        Spacer(Modifier.height(30.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            repeat(6) { i ->
+                val ch = typed.getOrNull(i)?.toString() ?: ""
+                Box(
+                    Modifier.weight(1f).height(60.dp).clip(RoundedCornerShape(14.dp)).background(Surface)
+                        .border(2.dp, if (state == 2) Accent else Line, RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center,
+                ) { Text(ch, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Ink) }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        when (state) {
+            1 -> Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = Accent, strokeWidth = 2.dp)
+                Spacer(Modifier.width(10.dp))
+                Text(tr("Waiting for the SMS… {0}s", wait), color = Muted, fontSize = 14.sp)
+            }
+            2 -> Text(tr("Number verified ✅"), color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            3 -> {
+                error?.let { Text(it, color = Danger, fontSize = 14.sp, lineHeight = 20.sp) }
+                Spacer(Modifier.height(10.dp))
+                Text(tr("Try again"), color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { begin() }.padding(vertical = 6.dp))
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Text(tr("Wrong number? Go back and change it."), color = Muted, fontSize = 13.sp)
     }
 }
