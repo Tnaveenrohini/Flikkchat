@@ -49,7 +49,7 @@ object Media {
             while (max(bounds.outWidth, bounds.outHeight) / sample > maxSide * 2) sample *= 2
             val opts = BitmapFactory.Options().apply { inSampleSize = sample }
             ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
-                ?: error("Photo open avvaledu")
+                ?: error("Could not open photo")
         }
         val out = File(dir(ctx), "$id.jpg")
         out.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, if (hd) 92 else 80, it) }
@@ -68,7 +68,7 @@ object Media {
         val mime = ctx.contentResolver.getType(uri) ?: "video/mp4"
         val out = File(dir(ctx), "$id.${ext(mime)}")
         ctx.contentResolver.openInputStream(uri)?.use { input -> out.outputStream().use { input.copyTo(it) } }
-            ?: error("Video open avvaledu")
+            ?: error("Could not open video")
         if (out.length() > MAX_VIDEO_BYTES) { out.delete(); return null }
         return out to mime
     }

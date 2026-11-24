@@ -70,7 +70,7 @@ fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> U
             Chat.db.messages(peer).filter { (it.type == "image" || it.type == "video") && it.media.isNotEmpty() && !it.deleted }
         }
     }
-    val name = local?.name ?: state?.name ?: "Contact"
+    val name = local?.name ?: state?.name ?: tr("Contact")
     val muted = remember(version) { Chat.isMuted(peer) }
     val blocked = remember(version) { Chat.isBlocked(peer) }
     val timer = remember(version) { Chat.timerOf(peer) }
@@ -80,7 +80,7 @@ fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> U
 
     Column(Modifier.fillMaxSize().background(ChatBg).verticalScroll(rememberScrollState())) {
         Row(Modifier.statusBarsPadding().padding(start = 6.dp, top = 14.dp)) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp)) }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp)) }
         }
         Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Avatar(name, 104.dp)
@@ -89,14 +89,14 @@ fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> U
             Text(local?.phone ?: "", fontSize = 15.sp, color = Muted)
         }
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Tile(Icons.Filled.Call, "Audio", Modifier.weight(1f)) { caller(peer, false) }
-            Tile(Icons.Filled.Videocam, "Video", Modifier.weight(1f)) { caller(peer, true) }
-            Tile(Icons.AutoMirrored.Filled.Chat, "Message", Modifier.weight(1f), onClick = onBack)
+            Tile(Icons.Filled.Call, tr("Audio"), Modifier.weight(1f)) { caller(peer, false) }
+            Tile(Icons.Filled.Videocam, tr("Video"), Modifier.weight(1f)) { caller(peer, true) }
+            Tile(Icons.AutoMirrored.Filled.Chat, tr("Message"), Modifier.weight(1f), onClick = onBack)
         }
         state?.about?.takeIf { it.isNotBlank() }?.let { about ->
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(BubbleThem).padding(horizontal = 16.dp, vertical = 14.dp)) {
                 Text(about, fontSize = 15.sp, color = Ink)
-                Text("About", fontSize = 12.sp, color = Muted)
+                Text(tr("About"), fontSize = 12.sp, color = Muted)
             }
         }
         if (media.isNotEmpty()) {
@@ -111,7 +111,7 @@ fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> U
                     val last = media.takeLast(4).reversed()
                     last.forEach { m ->
                         AsyncImage(
-                            model = File(m.media), contentDescription = "Media", contentScale = ContentScale.Crop,
+                            model = File(m.media), contentDescription = tr("Media"), contentScale = ContentScale.Crop,
                             modifier = Modifier.weight(1f).height(70.dp).clip(RoundedCornerShape(12.dp))
                                 .clickable(enabled = m.type == "image") { openImage(m.media) },
                         )
@@ -121,13 +121,13 @@ fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> U
             }
         }
         Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(BubbleThem).padding(vertical = 4.dp)) {
-            InfoRow(Icons.Filled.NotificationsOff, "Mute notifications", if (muted) "On" else "Off") { Chat.setMuted(peer, !muted) }
-            InfoRow(Icons.Filled.Timer, "Disappearing messages", Chat.ttlLabel(timer).replaceFirstChar { it.uppercase() }) { askTimer = true }
-            InfoRow(Icons.Filled.Lock, "Encryption", "Verify") {
-                scope.launch { code = withContext(Dispatchers.IO) { Chat.safetyCode(peer) } ?: "Ee contact paata app vaadutunnaru — encryption ledu" }
+            InfoRow(Icons.Filled.NotificationsOff, tr("Mute notifications"), if (muted) tr("On") else tr("Off")) { Chat.setMuted(peer, !muted) }
+            InfoRow(Icons.Filled.Timer, tr("Disappearing messages"), Chat.ttlLabel(timer).replaceFirstChar { it.uppercase() }) { askTimer = true }
+            InfoRow(Icons.Filled.Lock, tr("Encryption"), tr("Verify")) {
+                scope.launch { code = withContext(Dispatchers.IO) { Chat.safetyCode(peer) } ?: tr("This contact uses an old app version — no encryption") }
             }
-            InfoRow(Icons.Filled.DeleteSweep, "Clear chat", "") { askClear = true }
-            InfoRow(Icons.Filled.Block, if (blocked) "Unblock $name" else "Block $name", "", color = Color(0xFFB91C1C)) { Chat.setBlocked(peer, !blocked) }
+            InfoRow(Icons.Filled.DeleteSweep, tr("Clear chat"), "") { askClear = true }
+            InfoRow(Icons.Filled.Block, if (blocked) tr("Unblock {0}", name) else tr("Block {0}", name), "", color = Color(0xFFB91C1C)) { Chat.setBlocked(peer, !blocked) }
         }
         Spacer(Modifier.navigationBarsPadding().height(24.dp))
     }
@@ -135,7 +135,7 @@ fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> U
     if (askTimer) {
         AlertDialog(
             onDismissRequest = { askTimer = false },
-            title = { Text("Disappearing messages") },
+            title = { Text(tr("Disappearing messages")) },
             text = {
                 Column {
                     listOf(0L, 86_400_000L, 7 * 86_400_000L, 90 * 86_400_000L).forEach { v ->
@@ -147,32 +147,32 @@ fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> U
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { askTimer = false }) { Text("Close", color = Muted) } },
+            confirmButton = { TextButton(onClick = { askTimer = false }) { Text(tr("Close"), color = Muted) } },
             containerColor = BubbleThem,
         )
     }
     if (askClear) {
         AlertDialog(
             onDismissRequest = { askClear = false },
-            title = { Text("Clear this chat?") },
-            text = { Text("Messages, photos annee mee phone nunchi delete avutayi.", color = Muted) },
-            confirmButton = { TextButton(onClick = { askClear = false; Chat.clearChat(peer) }) { Text("Clear", color = Danger) } },
-            dismissButton = { TextButton(onClick = { askClear = false }) { Text("Cancel", color = Muted) } },
+            title = { Text(tr("Clear this chat?")) },
+            text = { Text(tr("All messages and photos will be deleted from your phone."), color = Muted) },
+            confirmButton = { TextButton(onClick = { askClear = false; Chat.clearChat(peer) }) { Text(tr("Clear"), color = Danger) } },
+            dismissButton = { TextButton(onClick = { askClear = false }) { Text(tr("Cancel"), color = Muted) } },
             containerColor = BubbleThem,
         )
     }
     code?.let { c ->
         AlertDialog(
             onDismissRequest = { code = null },
-            title = { Text("🔒 Encryption") },
+            title = { Text(tr("🔒 Encryption")) },
             text = {
                 Column {
-                    Text("Mee iddari phones lo ide code unte, connection safe.", color = Muted, fontSize = 13.sp)
+                    Text(tr("If you both see the same code, your connection is safe."), color = Muted, fontSize = 13.sp)
                     Spacer(Modifier.height(12.dp))
                     Text(c, fontSize = 16.sp, letterSpacing = 1.sp, color = Ink)
                 }
             },
-            confirmButton = { TextButton(onClick = { code = null }) { Text("OK", color = Accent) } },
+            confirmButton = { TextButton(onClick = { code = null }) { Text(tr("OK"), color = Accent) } },
             containerColor = BubbleThem,
         )
     }

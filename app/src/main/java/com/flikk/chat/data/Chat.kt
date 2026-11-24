@@ -143,17 +143,17 @@ object Chat {
 
     /** null = success, lekapothe error message */
     suspend fun register(name: String, rawPhone: String, pin: String? = null): String? = withContext(Dispatchers.IO) {
-        val phone = normalize(rawPhone) ?: return@withContext "Phone number correct ga ivvandi"
-        if (name.isBlank()) return@withContext "Mee peru ivvandi"
+        val phone = normalize(rawPhone) ?: return@withContext "Enter a valid phone number"
+        if (name.isBlank()) return@withContext "Enter your name"
         try {
             val user = auth.currentUser ?: try {
                 withTimeout(20_000) { auth.signInAnonymously().await().user }
             } catch (e: TimeoutCancellationException) {
-                return@withContext "Internet slow ga undi, malli try cheyyandi"
+                return@withContext "Internet is slow, please try again"
             } catch (e: Exception) {
                 val m = e.message ?: ""
                 return@withContext if (m.contains("ADMIN_ONLY", true) || m.contains("disabled", true) || m.contains("CONFIGURATION_NOT_FOUND", true))
-                    "Firebase lo Authentication → Anonymous enable cheyyandi"
+                    "Enable Authentication → Anonymous in Firebase"
                 else "Login error: $m"
             }
             val uid = user?.uid ?: return@withContext "Login failed, please try again"
@@ -172,7 +172,7 @@ object Chat {
                 fs.collection("phones").document(phone).set(mapOf("uid" to uid)).await()
                 true
             }
-            if (ok == null) return@withContext "Server reach avvaledu. Firebase lo Firestore Database create chesara? (Internet kuda check cheyyandi)"
+            if (ok == null) return@withContext "Could not reach the server. Did you create the Firestore Database in Firebase? (Check your internet too)"
             prefs.edit()
                 .putString("name", name.trim())
                 .putString("phone", phone)
@@ -183,13 +183,13 @@ object Chat {
             null
         } catch (e: Exception) {
             val m = e.message ?: "network problem"
-            if (m.contains("PERMISSION_DENIED", true)) "Firestore Rules publish cheyyandi (firestore.rules)" else "Error: $m"
+            if (m.contains("PERMISSION_DENIED", true)) "Publish the Firestore rules (firestore.rules)" else "Error: $m"
         }
     }
 
     suspend fun updateProfile(name: String, about: String): String? = withContext(Dispatchers.IO) {
-        val uid = me ?: return@withContext "Login avvaledu"
-        if (name.isBlank()) return@withContext "Peru empty undakudadu"
+        val uid = me ?: return@withContext "Not logged in"
+        if (name.isBlank()) return@withContext "Name cannot be empty"
         try {
             fs.collection("users").document(uid)
                 .set(mapOf("name" to name.trim(), "about" to about.trim()), SetOptions.merge()).await()
@@ -334,10 +334,10 @@ object Chat {
     }
 
     suspend fun shareLocation(peer: String, reply: Msg?): String? {
-        val l = currentLocation() ?: return "Location dorakaledu. GPS on chesi malli try cheyyandi"
+        val l = currentLocation() ?: return "Location not found. Turn on GPS and try again"
         val lat = "%.6f".format(java.util.Locale.US, l.latitude)
         val lng = "%.6f".format(java.util.Locale.US, l.longitude)
-        send(peer, "📍 Naa location\nhttps://maps.google.com/?q=$lat,$lng", reply = reply)
+        send(peer, "📍 My location\nhttps://maps.google.com/?q=$lat,$lng", reply = reply)
         return null
     }
 
@@ -348,7 +348,7 @@ object Chat {
             app.contentResolver.query(contactUri, arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME), null, null, null)?.use { c ->
                 if (c.moveToFirst()) { id = c.getString(0); name = c.getString(1) ?: "" }
             }
-            if (id.isEmpty()) return@withContext "Contact open avvaledu"
+            if (id.isEmpty()) return@withContext "Could not open contact"
             val nums = mutableListOf<String>()
             app.contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
@@ -357,18 +357,18 @@ object Chat {
             )?.use { c -> while (c.moveToNext()) c.getString(0)?.let { nums += it } }
             send(peer, "👤 $name\n" + nums.distinct().joinToString("\n"), reply = reply)
             null
-        } catch (e: Exception) { "Contact pampalekapoyam: ${e.message}" }
+        } catch (e: Exception) { "Could not send contact" }
     }
 
     suspend fun sendAudioFile(peer: String, uri: Uri, reply: Msg?): String? = withContext(Dispatchers.IO) {
         try {
-            if (Media.size(app, uri) > Media.MAX_VIDEO_BYTES) return@withContext "Audio 16 MB kanna chinnadi undali"
+            if (Media.size(app, uri) > Media.MAX_VIDEO_BYTES) return@withContext "Audio must be smaller than 16 MB"
             val mime = app.contentResolver.getType(uri) ?: "audio/mpeg"
             val f = File(Media.dir(app), UUID.randomUUID().toString() + "." + (if (mime.contains("mpeg")) "mp3" else Media.ext(mime)))
-            app.contentResolver.openInputStream(uri)?.use { i -> f.outputStream().use { i.copyTo(it) } } ?: return@withContext "File open avvaledu"
+            app.contentResolver.openInputStream(uri)?.use { i -> f.outputStream().use { i.copyTo(it) } } ?: return@withContext "Could not open file"
             send(peer, "", "audio", f.absolutePath, mime, Media.durationMs(f.absolutePath), reply)
             null
-        } catch (e: Exception) { "Audio pampalekapoyam: ${e.message}" }
+        } catch (e: Exception) { "Could not send audio" }
     }
 
     /** Status ki reply (chat lo vellutundi) */
@@ -666,7 +666,7 @@ object Chat {
                 if (plain != null) { key = k; break }
             }
             if (plain == null) {
-                text = "🔒 Ee message open avvaledu (security key maarindi)"
+                text = "🔒 Could not open this message (security key changed)"
             } else {
                 val j = JSONObject(String(plain))
                 text = j.optString("text"); rtext = j.optString("rtext"); rname = j.optString("rname")
@@ -830,7 +830,7 @@ object Chat {
             try {
                 if (isVideo) {
                     val (f, mime) = Media.prepareVideo(app, uri, id)
-                        ?: return@withContext "Video 16 MB kanna chinnadi undali"
+                        ?: return@withContext "Video must be smaller than 16 MB"
                     send(peer, caption, "video", f.absolutePath, mime, Media.durationMs(f.absolutePath), reply, viewOnce = viewOnce)
                 } else {
                     val f = Media.prepareImage(app, uri, id, hd)
@@ -838,7 +838,7 @@ object Chat {
                 }
                 null
             } catch (e: Exception) {
-                "Pampalekapoyam: ${e.message}"
+                "Could not send"
             }
         }
 
@@ -920,7 +920,7 @@ object Chat {
     }
 
     suspend fun postPhotoStatus(uri: Uri, caption: String): String? = withContext(Dispatchers.IO) {
-        val uid = me ?: return@withContext "Login avvaledu"
+        val uid = me ?: return@withContext "Not logged in"
         val id = UUID.randomUUID().toString()
         try {
             val f = Media.prepareImage(app, uri, id)
@@ -928,7 +928,7 @@ object Chat {
             db.insertStatus(st)
             shareStatus(st)
             null
-        } catch (e: Exception) { "Status pettalekapoyam: ${e.message}" }
+        } catch (e: Exception) { "Could not post status" }
     }
 
     private fun shareStatus(st: StatusItem) {

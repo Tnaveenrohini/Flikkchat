@@ -185,10 +185,10 @@ private fun BottomNav(tab: Int, onSelect: (Int) -> Unit, modifier: Modifier) {
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        NavItem("Chats", tab == 0, { onSelect(0) }) { c -> Icon(Icons.AutoMirrored.Filled.Chat, null, tint = c, modifier = Modifier.size(22.dp)) }
-        NavItem("Updates", tab == 1, { onSelect(1) }) { c -> DashedCircle(c) }
-        NavItem("Groups", tab == 2, { onSelect(2) }) { c -> Icon(Icons.Filled.Groups, null, tint = c, modifier = Modifier.size(24.dp)) }
-        NavItem("Calls", tab == 3, { onSelect(3) }) { c -> Icon(Icons.Filled.Call, null, tint = c, modifier = Modifier.size(22.dp)) }
+        NavItem(tr("Chats"), tab == 0, { onSelect(0) }) { c -> Icon(Icons.AutoMirrored.Filled.Chat, null, tint = c, modifier = Modifier.size(22.dp)) }
+        NavItem(tr("Updates"), tab == 1, { onSelect(1) }) { c -> DashedCircle(c) }
+        NavItem(tr("Groups"), tab == 2, { onSelect(2) }) { c -> Icon(Icons.Filled.Groups, null, tint = c, modifier = Modifier.size(24.dp)) }
+        NavItem(tr("Calls"), tab == 3, { onSelect(3) }) { c -> Icon(Icons.Filled.Call, null, tint = c, modifier = Modifier.size(22.dp)) }
     }
 }
 
@@ -268,7 +268,7 @@ private fun ChatsTab(
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
             val err = Chat.postPhotoStatus(uri, "")
-            Toast.makeText(ctx, err ?: "Status pettesam ✅", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, err?.let { tr(it) } ?: tr("Status posted ✅"), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -290,15 +290,15 @@ private fun ChatsTab(
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = NAV_SPACE.dp)) {
             item {
                 TopBar(title = { Brand() }) {
-                    RoundIcon(Icons.Filled.PhotoCamera, "Camera") {
+                    RoundIcon(Icons.Filled.PhotoCamera, tr("Camera")) {
                         camera.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     }
                     Box {
-                        RoundIcon(Icons.Filled.MoreVert, "More options") { menu = true }
+                        RoundIcon(Icons.Filled.MoreVert, tr("More options")) { menu = true }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(text = { Text("New group") }, onClick = { menu = false; openNewGroup() })
-                            DropdownMenuItem(text = { Text("Starred messages") }, onClick = { menu = false; openStarred() })
-                            DropdownMenuItem(text = { Text("Settings") }, onClick = { menu = false; openProfile() })
+                            DropdownMenuItem(text = { Text(tr("New group")) }, onClick = { menu = false; openNewGroup() })
+                            DropdownMenuItem(text = { Text(tr("Starred messages")) }, onClick = { menu = false; openStarred() })
+                            DropdownMenuItem(text = { Text(tr("Settings")) }, onClick = { menu = false; openProfile() })
                         }
                     }
                 }
@@ -328,7 +328,7 @@ private fun ChatsTab(
                 ChatRowItem(c, onLong = { rowMenu = c }) { openChat(c.peer) }
             }
             if (q.isNotBlank() && results.isNotEmpty()) {
-                item { SectionLabel("Messages") }
+                item { SectionLabel(tr("Messages")) }
                 items(results, key = { "m" + it.id }) { m ->
                     Column(Modifier.fillMaxWidth().clickable { openChat(m.peer) }.padding(horizontal = 20.dp, vertical = 10.dp)) {
                         Row {
@@ -343,10 +343,10 @@ private fun ChatsTab(
                 Column(Modifier.fillMaxWidth().padding(40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         when {
-                            q.isNotBlank() -> "\"$q\" ki chats levu"
-                            filter == 3 -> "Favourites levu. Chat meeda long press chesi add cheyyandi ⭐"
-                            filter != 0 -> "Ikkada chats levu"
-                            else -> "Inka chats levu.\nKinda button nokki friends tho chat start cheyyandi."
+                            q.isNotBlank() -> tr("No chats for \"{0}\"", q)
+                            filter == 3 -> tr("No favourites. Long-press a chat to add it ⭐")
+                            filter != 0 -> tr("No chats here")
+                            else -> tr("No chats yet.\nTap the button below to start chatting with friends.")
                         },
                         color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp,
                     )
@@ -375,7 +375,7 @@ private fun ChatsTab(
                 containerColor = BubbleThem,
             )
         }
-        SquareFab(Icons.Filled.AddComment, "New chat", Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp)) {
+        SquareFab(Icons.Filled.AddComment, tr("New chat"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp)) {
             openContacts()
         }
     }
@@ -453,19 +453,19 @@ private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit) {
         .sortedWith(compareByDescending<Triple<String, List<StatusItem>, Boolean>> { it.third }.thenByDescending { it.second.maxOf { s -> s.ts } })
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
-            Toast.makeText(ctx, "Status pedtunnam...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, tr("Posting status..."), Toast.LENGTH_SHORT).show()
             val err = Chat.postPhotoStatus(uri, "")
-            Toast.makeText(ctx, err ?: "Status pettesam ✅", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, err?.let { tr(it) } ?: tr("Status posted ✅"), Toast.LENGTH_SHORT).show()
         }
     }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = NAV_SPACE.dp)) {
             item {
-                TopBar(title = { Title("Updates") }) {
-                    RoundIcon(Icons.Filled.Edit, "Text status", openText)
+                TopBar(title = { Title(tr("Updates")) }) {
+                    RoundIcon(Icons.Filled.Edit, tr("Text status"), openText)
                 }
-                Text("Status", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink,
+                Text(tr("Status"), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink,
                     modifier = Modifier.padding(start = 20.dp, top = 6.dp, bottom = 12.dp))
                 LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     item {
@@ -482,7 +482,7 @@ private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit) {
                                     contentAlignment = Alignment.Center,
                                 ) { Icon(Icons.Filled.Add, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
                             }
-                            Text("My status", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            Text(tr("My status"), fontSize = 12.sp, fontWeight = FontWeight.Bold,
                                 color = if (mine.isNotEmpty()) Color.White else Ink, textAlign = TextAlign.Center,
                                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp))
                         }
@@ -505,7 +505,7 @@ private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit) {
                         }
                     }
                 }
-                if (others.isNotEmpty()) SectionLabel("Recent")
+                if (others.isNotEmpty()) SectionLabel(tr("Recent"))
             }
             items(others, key = { "r" + it.first }) { (owner, list, unseen) ->
                 val name = Chat.nameOf(owner)
@@ -526,13 +526,13 @@ private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit) {
             }
             if (others.isEmpty()) item {
                 Text(
-                    "Mee contacts status pedithe ikkada kanipistundi. Status 24 hours tarvatha automatic ga pothundi.",
+                    tr("Your contacts' status updates appear here. A status disappears after 24 hours."),
                     color = Muted, fontSize = 13.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(28.dp),
                 )
             }
         }
-        SquareFab(Icons.Filled.PhotoCamera, "Photo status", Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp)) {
+        SquareFab(Icons.Filled.PhotoCamera, tr("Photo status"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp)) {
             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
     }
@@ -559,7 +559,7 @@ private fun GroupsTab(openChat: (String) -> Unit, openNewGroup: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = NAV_SPACE.dp)) {
             item {
-                TopBar(title = { Title("Groups") }) { RoundIcon(Icons.Filled.GroupAdd, "New group", openNewGroup) }
+                TopBar(title = { Title(tr("Groups")) }) { RoundIcon(Icons.Filled.GroupAdd, tr("New group"), openNewGroup) }
             }
             items(groups, key = { it.peer }) { c -> ChatRowItem(c) { openChat(c.peer) } }
             if (groups.isEmpty()) item {
@@ -568,13 +568,13 @@ private fun GroupsTab(openChat: (String) -> Unit, openNewGroup: () -> Unit) {
                         Icon(Icons.Filled.Groups, null, tint = Accent, modifier = Modifier.size(36.dp))
                     }
                     Spacer(Modifier.height(14.dp))
-                    Text("Inka groups levu", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Ink)
+                    Text(tr("No groups yet"), fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Ink)
                     Spacer(Modifier.height(6.dp))
-                    Text("Family, friends, office kosam group create cheyyandi.", color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp)
+                    Text(tr("Create a group for family, friends or work."), color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp)
                 }
             }
         }
-        SquareFab(Icons.Filled.GroupAdd, "New group", Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp), onClick = openNewGroup)
+        SquareFab(Icons.Filled.GroupAdd, tr("New group"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp), onClick = openNewGroup)
     }
 }
 
@@ -591,14 +591,14 @@ private fun CallsTab(openCallPicker: (Boolean) -> Unit, openContacts: () -> Unit
     val shown = if (missedOnly) calls.filter { it.missed } else calls
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = NAV_SPACE.dp)) {
         item {
-            TopBar(title = { Title("Calls") })
+            TopBar(title = { Title(tr("Calls")) })
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ActionTile(Icons.Filled.Call, "Call", Modifier.weight(1f)) { openCallPicker(false) }
-                ActionTile(Icons.Filled.Videocam, "Video", Modifier.weight(1f)) { openCallPicker(true) }
-                ActionTile(Icons.Filled.Contacts, "Contacts", Modifier.weight(1f), onClick = openContacts)
-                ActionTile(Icons.Filled.PhoneMissed, if (missedOnly) "All" else "Missed", Modifier.weight(1f)) { missedOnly = !missedOnly }
+                ActionTile(Icons.Filled.Call, tr("Call"), Modifier.weight(1f)) { openCallPicker(false) }
+                ActionTile(Icons.Filled.Videocam, tr("Video"), Modifier.weight(1f)) { openCallPicker(true) }
+                ActionTile(Icons.Filled.Contacts, tr("Contacts"), Modifier.weight(1f), onClick = openContacts)
+                ActionTile(Icons.Filled.PhoneMissed, if (missedOnly) tr("All") else tr("Missed"), Modifier.weight(1f)) { missedOnly = !missedOnly }
             }
-            SectionLabel(if (missedOnly) "Missed" else "Recent")
+            SectionLabel(if (missedOnly) tr("Missed") else tr("Recent"))
         }
         items(shown, key = { it.id }) { c ->
             val name = Chat.nameOf(c.peer)
@@ -618,13 +618,13 @@ private fun CallsTab(openCallPicker: (Boolean) -> Unit, openContacts: () -> Unit
                     }
                 }
                 IconButton(onClick = { caller(c.peer, c.video) }) {
-                    Icon(if (c.video) Icons.Filled.Videocam else Icons.Filled.Call, (if (c.video) "Video call " else "Voice call ") + name, tint = Ink)
+                    Icon(if (c.video) Icons.Filled.Videocam else Icons.Filled.Call, tr(if (c.video) "Video call" else "Voice call") + " " + name, tint = Ink)
                 }
             }
         }
         if (shown.isEmpty()) item {
             Text(
-                if (missedOnly) "Missed calls levu 👍" else "Inka calls levu. Paina Call / Video nokki call cheyyandi.",
+                if (missedOnly) tr("No missed calls 👍") else tr("No calls yet. Tap Call / Video above to start one."),
                 color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp, modifier = Modifier.fillMaxWidth().padding(32.dp),
             )
         }
@@ -656,7 +656,7 @@ fun CallPickerScreen(video: Boolean, onBack: () -> Unit) {
         value = withContext(Dispatchers.IO) { Chat.findContacts().map { com.flikk.chat.data.Peer(it.uid, it.name, it.phone) } }
     }
     Column(Modifier.fillMaxSize().background(Bg)) {
-        Header(title = if (video) "Video call" else "Voice call", subtitle = "Contact select cheyyandi", onBack = onBack)
+        Header(title = if (video) tr("Video call") else tr("Voice call"), subtitle = tr("Select a contact"), onBack = onBack)
         LazyColumn(Modifier.fillMaxSize()) {
             items(people, key = { it.uid }) { p ->
                 Row(
@@ -673,7 +673,7 @@ fun CallPickerScreen(video: Boolean, onBack: () -> Unit) {
                 }
             }
             if (people.isEmpty()) item {
-                Text("Flikkchat lo contacts levu", color = Muted, modifier = Modifier.fillMaxWidth().padding(32.dp), textAlign = TextAlign.Center)
+                Text(tr("No contacts on Flikkchat"), color = Muted, modifier = Modifier.fillMaxWidth().padding(32.dp), textAlign = TextAlign.Center)
             }
         }
     }

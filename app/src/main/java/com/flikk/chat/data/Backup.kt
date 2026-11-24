@@ -57,8 +57,8 @@ object Backup {
                     zip.closeEntry()
                 }
             }
-        } ?: error("File open avvaledu")
-        if (!hasDb) error("Idi Flikkchat backup file kaadu")
+        } ?: error("Could not open file")
+        if (!hasDb) error("This is not a Flikkchat backup file")
 
         Chat.db.close()
         val dbFile = ctx.getDatabasePath(DB_NAME)

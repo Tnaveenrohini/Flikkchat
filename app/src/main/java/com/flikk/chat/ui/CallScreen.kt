@@ -79,7 +79,7 @@ fun rememberCaller(): (String, Boolean) -> Unit {
         val p = pending ?: return@rememberLauncherForActivityResult
         pending = null
         if (res.values.all { it }) Calls.start(p.first, p.second)
-        else Toast.makeText(ctx, "Call ki mic${if (p.second) " / camera" else ""} permission kavali", Toast.LENGTH_LONG).show()
+        else Toast.makeText(ctx, tr(if (p.second) "Microphone / camera permission needed for calls" else "Microphone permission needed for calls"), Toast.LENGTH_LONG).show()
     }
     return { peer, video ->
         if (Calls.hasPermissions(video)) Calls.start(peer, video)
@@ -126,14 +126,14 @@ fun CallScreen(st: CallState) {
 
     val acceptLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
         if (res.values.all { it }) Calls.accept()
-        else { Toast.makeText(ctx, "Call ki permission kavali", Toast.LENGTH_LONG).show(); Calls.decline() }
+        else { Toast.makeText(ctx, tr("Permission needed for calls"), Toast.LENGTH_LONG).show(); Calls.decline() }
     }
     val status = when (st.phase) {
-        Phase.OUTGOING -> "Calling…"
-        Phase.INCOMING -> if (st.video) "Incoming video call" else "Incoming voice call"
-        Phase.CONNECTING -> "Connecting…"
-        Phase.CONNECTED -> "Encrypted · " + duration(now - st.connectedAt)
-        Phase.ENDED -> st.endReason
+        Phase.OUTGOING -> tr("Calling…")
+        Phase.INCOMING -> if (st.video) tr("Incoming video call") else tr("Incoming voice call")
+        Phase.CONNECTING -> tr("Connecting…")
+        Phase.CONNECTED -> tr("Encrypted") + " · " + duration(now - st.connectedAt)
+        Phase.ENDED -> tr(st.endReason)
     }
 
     if (st.phase == Phase.INCOMING) {
@@ -207,8 +207,8 @@ fun CallScreen(st: CallState) {
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 56.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                BigBtn(Icons.Filled.CallEnd, EndRed, "Decline") { Calls.decline() }
-                BigBtn(if (st.video) Icons.Filled.Videocam else Icons.Filled.Call, Color(0xFF16A34A), "Accept") {
+                BigBtn(Icons.Filled.CallEnd, EndRed, tr("Decline")) { Calls.decline() }
+                BigBtn(if (st.video) Icons.Filled.Videocam else Icons.Filled.Call, Color(0xFF16A34A), tr("Accept")) {
                     if (Calls.hasPermissions(st.video)) Calls.accept()
                     else acceptLauncher.launch(
                         if (st.video) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
@@ -225,18 +225,18 @@ fun CallScreen(st: CallState) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (st.video) {
-                    CtrlBtn(Icons.Filled.Cameraswitch, "Flip camera") { Calls.switchCamera() }
+                    CtrlBtn(Icons.Filled.Cameraswitch, tr("Flip camera")) { Calls.switchCamera() }
                     CtrlBtn(if (st.cameraOff) Icons.Filled.VideocamOff else Icons.Filled.Videocam,
-                        if (st.cameraOff) "Turn camera on" else "Turn camera off", active = st.cameraOff) { Calls.toggleCamera() }
+                        if (st.cameraOff) tr("Turn camera on") else tr("Turn camera off"), active = st.cameraOff) { Calls.toggleCamera() }
                 } else {
-                    CtrlBtn(Icons.AutoMirrored.Filled.VolumeUp, "Speaker", active = st.speaker) { Calls.toggleSpeaker() }
+                    CtrlBtn(Icons.AutoMirrored.Filled.VolumeUp, tr("Speaker"), active = st.speaker) { Calls.toggleSpeaker() }
                 }
-                CtrlBtn(if (st.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (st.muted) "Unmute" else "Mute microphone", active = st.muted) { Calls.toggleMute() }
+                CtrlBtn(if (st.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (st.muted) tr("Unmute") else tr("Mute microphone"), active = st.muted) { Calls.toggleMute() }
                 Box(
                     Modifier.size(width = 72.dp, height = 56.dp).clip(RoundedCornerShape(28.dp)).background(EndRed)
                         .clickable { Calls.hangup() },
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Filled.CallEnd, "End call", tint = Color.White, modifier = Modifier.size(26.dp)) }
+                ) { Icon(Icons.Filled.CallEnd, tr("End call"), tint = Color.White, modifier = Modifier.size(26.dp)) }
             }
         }
     }
@@ -273,7 +273,7 @@ private fun VoiceCallLayout(st: CallState, name: String, status: String, onAccep
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Lock, null, tint = NavMuted, modifier = Modifier.size(12.dp))
             Spacer(Modifier.width(6.dp))
-            Text("End-to-end encrypted", fontSize = 12.sp, color = NavMuted)
+            Text(tr("End-to-end encrypted"), fontSize = 12.sp, color = NavMuted)
         }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Box(
@@ -288,25 +288,25 @@ private fun VoiceCallLayout(st: CallState, name: String, status: String, onAccep
             Text(name, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
             Spacer(Modifier.height(6.dp))
             Text(
-                if (st.phase == Phase.CONNECTED) status.removePrefix("Encrypted · ") else status,
+                if (st.phase == Phase.CONNECTED) status.substringAfter(" · ") else status,
                 fontSize = 16.sp, color = if (st.phase == Phase.ENDED) Color(0xFFFCA5A5) else Color(0xFFC3C5D3),
             )
         }
         when (st.phase) {
             Phase.INCOMING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                BigBtn(Icons.Filled.CallEnd, EndRed, "Decline") { Calls.decline() }
-                BigBtn(Icons.Filled.Call, Color(0xFF16A34A), "Accept", onClick = onAccept)
+                BigBtn(Icons.Filled.CallEnd, EndRed, tr("Decline")) { Calls.decline() }
+                BigBtn(Icons.Filled.Call, Color(0xFF16A34A), tr("Accept"), onClick = onAccept)
             }
             Phase.ENDED -> Spacer(Modifier.height(76.dp))
             else -> {
                 Row(Modifier.padding(bottom = 34.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                    GridBtn(Icons.AutoMirrored.Filled.VolumeUp, "Speaker", st.speaker) { Calls.toggleSpeaker() }
-                    GridBtn(if (st.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (st.muted) "Unmute" else "Mute", st.muted) { Calls.toggleMute() }
+                    GridBtn(Icons.AutoMirrored.Filled.VolumeUp, tr("Speaker"), st.speaker) { Calls.toggleSpeaker() }
+                    GridBtn(if (st.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (st.muted) tr("Unmute") else tr("Mute"), st.muted) { Calls.toggleMute() }
                 }
                 Box(
                     Modifier.size(76.dp).clip(CircleShape).background(EndRed).clickable { Calls.hangup() },
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Filled.CallEnd, "End call", tint = Color.White, modifier = Modifier.size(32.dp)) }
+                ) { Icon(Icons.Filled.CallEnd, tr("End call"), tint = Color.White, modifier = Modifier.size(32.dp)) }
             }
         }
     }
@@ -325,10 +325,10 @@ private fun GridBtn(icon: ImageVector, label: String, active: Boolean, onClick: 
 }
 
 private val QuickReplies = listOf(
-    "Can't talk now. I'll call you back.",
-    "I'm in a meeting.",
-    "On my way.",
-    "Call me later.",
+    tr("Can't talk now. I'll call you back."),
+    tr("I'm in a meeting."),
+    tr("On my way."),
+    tr("Call me later."),
 )
 
 /** 📲 Incoming call screen */
@@ -343,7 +343,7 @@ private fun IncomingLayout(st: CallState, name: String, onAccept: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(if (st.video) Icons.Filled.Videocam else Icons.Filled.Call, null, tint = NavMuted, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
-            Text(tr(if (st.video) "Flikkchat video call" else "Flikkchat voice call"), fontSize = 13.sp, color = NavMuted, fontWeight = FontWeight.SemiBold)
+            Text(tr(if (st.video) tr("Flikkchat video call") else tr("Flikkchat voice call")), fontSize = 13.sp, color = NavMuted, fontWeight = FontWeight.SemiBold)
         }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Box(Modifier.size(200.dp).border(2.dp, Color(0x2EC9BFFF), CircleShape), contentAlignment = Alignment.Center) {

@@ -93,7 +93,7 @@ fun SubPage(title: String, onBack: () -> Unit, content: @Composable ColumnScope.
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp)) }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp)) }
             Text(title, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = 24.dp), content = content)
@@ -207,14 +207,14 @@ fun SettingsScreen(
         }
         Card {
             IconRow(Icons.Filled.Language, Color(0xFFFCE1F0), Color(0xFF9D174D), tr("App language"), Languages.first { it.first == appLang }.second, openLanguage)
-            IconRow(Icons.Filled.Password, Color(0xFFE5E7EB), Color(0xFF374151), tr("Two-step verification"), tr(if (Chat.hasPin) "On" else "Off"), openTwoStep)
+            IconRow(Icons.Filled.Password, Color(0xFFE5E7EB), Color(0xFF374151), tr("Two-step verification"), tr(if (Chat.hasPin) tr("On") else tr("Off")), openTwoStep)
             IconRow(Icons.Filled.Info, Color(0xFFFFF1C7), Color(0xFF854D0E), tr("Starred messages"), tr("Messages you saved"), openStarred)
             IconRow(Icons.Filled.Share, Color(0xFFE7E3FF), Color(0xFF3A20C2), tr("Invite a friend"), tr("Share Flikkchat")) {
                 val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
                     Intent.EXTRA_TEXT,
-                    "Hey! Flikkchat lo chat cheddam 💬 Made in India app 🇮🇳\nhttps://github.com/Tnaveenrohini/Flikkchat/releases/latest"
+                    tr("Hey! Let's chat on Flikkchat 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Flikkchat/releases/latest"
                 )
-                ctx.startActivity(Intent.createChooser(i, "Invite"))
+                ctx.startActivity(Intent.createChooser(i, tr("Invite")))
             }
         }
         Text("Flikkchat · Made in India 🇮🇳", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(8.dp))
@@ -231,21 +231,21 @@ fun EditProfileScreen(onBack: () -> Unit) {
     var editing by remember { mutableStateOf<String?>(null) }
     var draft by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf<String?>(null) }
-    SubPage("Profile", onBack) {
+    SubPage(tr("Profile"), onBack) {
         Box(Modifier.align(Alignment.CenterHorizontally).padding(top = 10.dp, bottom = 26.dp)) { Avatar(name, 140.dp) }
         Card {
-            FieldRow(Icons.Filled.Person, "Name", name, true) { editing = "name"; draft = name }
-            FieldRow(Icons.Filled.Info, "About", about, true) { editing = "about"; draft = about }
-            FieldRow(Icons.Filled.Phone, "Phone", Chat.myPhone, false) {}
+            FieldRow(Icons.Filled.Person, tr("Name"), name, true) { editing = "name"; draft = name }
+            FieldRow(Icons.Filled.Info, tr("About"), about, true) { editing = "about"; draft = about }
+            FieldRow(Icons.Filled.Phone, tr("Phone"), Chat.myPhone, false) {}
         }
-        Text("Mee peru, about mee contacts ki kanipistayi.", fontSize = 12.sp, lineHeight = 18.sp, color = Muted,
+        Text(tr("Your name and about are visible to your contacts."), fontSize = 12.sp, lineHeight = 18.sp, color = Muted,
             modifier = Modifier.padding(horizontal = 28.dp))
         msg?.let { Text(it, fontSize = 13.sp, color = Accent, modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)) }
     }
     editing?.let { field ->
         AlertDialog(
             onDismissRequest = { editing = null },
-            title = { Text(if (field == "name") "Mee peru" else "About") },
+            title = { Text(if (field == "name") tr("Your name") else tr("About")) },
             text = { BoxField("", draft, { draft = it.take(if (field == "name") 40 else 140) }, focused = true) },
             confirmButton = {
                 TextButton(onClick = {
@@ -254,11 +254,11 @@ fun EditProfileScreen(onBack: () -> Unit) {
                     editing = null
                     scope.launch {
                         val err = Chat.updateProfile(n, a)
-                        if (err == null) { name = n; about = a; msg = "Saved ✅" } else msg = err
+                        if (err == null) { name = n; about = a; msg = tr("Saved ✅") } else msg = tr(err)
                     }
-                }, enabled = field != "name" || draft.isNotBlank()) { Text("Save", color = Accent) }
+                }, enabled = field != "name" || draft.isNotBlank()) { Text(tr("Save"), color = Accent) }
             },
-            dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel", color = Muted) } },
+            dismissButton = { TextButton(onClick = { editing = null }) { Text(tr("Cancel"), color = Muted) } },
             containerColor = BubbleThem,
         )
     }
@@ -276,7 +276,7 @@ private fun FieldRow(icon: ImageVector, label: String, value: String, edit: Bool
             Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Muted)
             Text(value, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Ink)
         }
-        if (edit) Icon(Icons.Filled.Edit, "Edit $label", tint = Accent, modifier = Modifier.size(20.dp))
+        if (edit) Icon(Icons.Filled.Edit, tr("Edit") + " " + label, tint = Accent, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -287,24 +287,24 @@ fun PrivacyScreen(onBack: () -> Unit, openBlocked: () -> Unit) {
     val version by Chat.db.changes.collectAsState()
     val blocked = remember(version) { Chat.blockedList().size }
     val hideSeen = remember(version) { Chat.hideSeen }
-    SubPage("Privacy", onBack) {
-        Caps("Who can see my info")
+    SubPage(tr("Privacy"), onBack) {
+        Caps(tr("Who can see my info"))
         Card {
-            LinkRow("Last seen and online", if (hideSeen) "Nobody" else "Everyone") { Chat.setFlag("hide_seen", !hideSeen) }
-            LinkRow("Blocked contacts", if (blocked > 0) "$blocked" else "None", onClick = openBlocked)
+            LinkRow(tr("Last seen and online"), if (hideSeen) tr("Nobody") else tr("Everyone")) { Chat.setFlag("hide_seen", !hideSeen) }
+            LinkRow(tr("Blocked contacts"), if (blocked > 0) "$blocked" else tr("None"), onClick = openBlocked)
         }
-        Caps("Security")
+        Caps(tr("Security"))
         Card {
-            ToggleRow("Read receipts", "Off chesthe, mee nunchi blue ticks vellavu", remember(version) { Chat.readReceipts }) { Chat.setFlag("read_receipts", it) }
-            ToggleRow("App lock", "Fingerprint / screen lock tho app open cheyyandi", remember(version) { Chat.flag("app_lock", false) }) { Chat.setFlag("app_lock", it) }
-            ToggleRow("Silence unknown callers", "Contacts lo leni numbers nunchi calls ring avvavu", remember(version) { Chat.flag("silence_unknown", false) }) { Chat.setFlag("silence_unknown", it) }
+            ToggleRow(tr("Read receipts"), tr("When off, you won't send blue ticks"), remember(version) { Chat.readReceipts }) { Chat.setFlag("read_receipts", it) }
+            ToggleRow(tr("App lock"), tr("Open the app with fingerprint / screen lock"), remember(version) { Chat.flag("app_lock", false) }) { Chat.setFlag("app_lock", it) }
+            ToggleRow(tr("Silence unknown callers"), tr("Calls from numbers not in contacts won't ring"), remember(version) { Chat.flag("silence_unknown", false) }) { Chat.setFlag("silence_unknown", it) }
         }
-        Caps("Encryption")
+        Caps(tr("Encryption"))
         Card {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
                 Icon(Icons.Filled.Lock, null, tint = Accent, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(12.dp))
-                Text("Messages, photos, voice, status, calls annee end-to-end encrypted. Chats mee phone lone untayi.",
+                Text(tr("Messages, photos, voice, status and calls are all end-to-end encrypted. Chats stay on your phone."),
                     fontSize = 13.sp, lineHeight = 19.sp, color = Muted)
             }
         }
@@ -315,8 +315,8 @@ fun PrivacyScreen(onBack: () -> Unit, openBlocked: () -> Unit) {
 fun BlockedScreen(onBack: () -> Unit) {
     val version by Chat.db.changes.collectAsState()
     val list = remember(version) { Chat.blockedList() }
-    SubPage("Blocked contacts", onBack) {
-        if (list.isEmpty()) Text("Evarini block cheyyaledu", color = Muted, modifier = Modifier.fillMaxWidth().padding(32.dp), textAlign = TextAlign.Center)
+    SubPage(tr("Blocked contacts"), onBack) {
+        if (list.isEmpty()) Text(tr("You haven't blocked anyone"), color = Muted, modifier = Modifier.fillMaxWidth().padding(32.dp), textAlign = TextAlign.Center)
         else Card {
             list.forEach { uid ->
                 val n = Chat.nameOf(uid)
@@ -324,7 +324,7 @@ fun BlockedScreen(onBack: () -> Unit) {
                     Avatar(n, 42.dp)
                     Spacer(Modifier.width(12.dp))
                     Text(n, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { Chat.setBlocked(uid, false) }) { Text("Unblock", color = Accent, fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { Chat.setBlocked(uid, false) }) { Text(tr("Unblock"), color = Accent, fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -343,21 +343,21 @@ fun NotificationsScreen(onBack: () -> Unit) {
         else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(android.net.Uri.parse("package:" + ctx.packageName))
         ctx.startActivity(i)
     }
-    SubPage("Notifications", onBack) {
-        Caps("Messages")
+    SubPage(tr("Notifications"), onBack) {
+        Caps(tr("Messages"))
         Card {
-            ToggleRow("Show notifications", "New messages ki alert", remember(version) { Chat.flag("notify_msgs", true) }) { Chat.setFlag("notify_msgs", it) }
-            LinkRow("Tone & vibrate", sub = "Phone settings lo marchandi") { openChannel("messages") }
+            ToggleRow(tr("Show notifications"), tr("Alerts for new messages"), remember(version) { Chat.flag("notify_msgs", true) }) { Chat.setFlag("notify_msgs", it) }
+            LinkRow(tr("Tone & vibrate"), sub = tr("Change in phone settings")) { openChannel("messages") }
         }
-        Caps("Groups")
+        Caps(tr("Groups"))
         Card {
-            ToggleRow("Show notifications", "Group messages ki alert", remember(version) { Chat.flag("notify_groups", true) }) { Chat.setFlag("notify_groups", it) }
+            ToggleRow(tr("Show notifications"), tr("Alerts for group messages"), remember(version) { Chat.flag("notify_groups", true) }) { Chat.setFlag("notify_groups", it) }
         }
-        Caps("Calls")
-        Card { LinkRow("Ringtone & vibrate", sub = "Phone settings lo marchandi") { openChannel("calls") } }
-        Caps("Other")
+        Caps(tr("Calls"))
+        Card { LinkRow(tr("Ringtone & vibrate"), sub = tr("Change in phone settings")) { openChannel("calls") } }
+        Caps(tr("Other"))
         Card {
-            ToggleRow("Show preview", "Message text notification lo", remember(version) { Chat.flag("notify_preview", true) }) { Chat.setFlag("notify_preview", it) }
+            ToggleRow(tr("Show preview"), tr("Message text in notifications"), remember(version) { Chat.flag("notify_preview", true) }) { Chat.setFlag("notify_preview", it) }
         }
     }
 }
@@ -376,7 +376,7 @@ fun StorageScreen(onBack: () -> Unit) {
     val version by Chat.db.changes.collectAsState()
     val info by produceState<Chat.StorageInfo?>(initialValue = null, version) { value = Chat.storageInfo() }
     var clearPeer by remember { mutableStateOf<String?>(null) }
-    SubPage("Storage and data", onBack) {
+    SubPage(tr("Storage and data"), onBack) {
         val i = info
         Column(
             Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp))
@@ -385,7 +385,7 @@ fun StorageScreen(onBack: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(i?.let { size(it.total) } ?: "…", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.weight(1f))
-                Text("Flikkchat use chestundi", fontSize = 13.sp, color = Muted)
+                Text(tr("used by Flikkchat"), fontSize = 13.sp, color = Muted)
             }
             if (i != null && i.total > 0) {
                 val parts = listOf(i.photos to Accent, i.videos to Color(0xFF0E7490), i.audio to Danger, i.db to Color(0xFFC9C6D8))
@@ -393,21 +393,21 @@ fun StorageScreen(onBack: () -> Unit) {
                     parts.filter { it.first > 0 }.forEach { (v, c) -> Box(Modifier.weight(v.toFloat()).fillMaxSize().background(c)) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Legend(Accent, "Photos ${size(i.photos)}")
-                    Legend(Color(0xFF0E7490), "Videos ${size(i.videos)}")
+                    Legend(Accent, tr("Photos") + " ${size(i.photos)}")
+                    Legend(Color(0xFF0E7490), tr("Videos") + " ${size(i.videos)}")
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Legend(Danger, "Voice ${size(i.audio)}")
-                    Legend(Color(0xFFC9C6D8), "Chats ${size(i.db)}")
+                    Legend(Danger, tr("Voice") + " ${size(i.audio)}")
+                    Legend(Color(0xFFC9C6D8), tr("Chats") + " ${size(i.db)}")
                 }
             }
         }
-        Caps("Biggest chats")
+        Caps(tr("Biggest chats"))
         Card {
             val list = i?.byChat.orEmpty()
-            if (list.isEmpty()) Text("Media inka ledu", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
+            if (list.isEmpty()) Text(tr("No media yet"), color = Muted, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
             list.take(10).forEach { (peer, bytes) ->
-                val n = Chat.db.peer(peer)?.name ?: "Chat"
+                val n = Chat.db.peer(peer)?.name ?: tr("Chat")
                 Row(
                     Modifier.fillMaxWidth().clickable { clearPeer = peer }.padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -419,16 +419,16 @@ fun StorageScreen(onBack: () -> Unit) {
                 }
             }
         }
-        Text("Chat meeda tap chesi photos / videos / voice clear cheyyochu. Messages untayi.",
+        Text(tr("Tap a chat to clear its photos / videos / voice. Messages stay."),
             fontSize = 12.sp, color = Muted, modifier = Modifier.padding(horizontal = 28.dp))
     }
     clearPeer?.let { p ->
         AlertDialog(
             onDismissRequest = { clearPeer = null },
-            title = { Text("Media clear cheyyala?") },
-            text = { Text("${Chat.db.peer(p)?.name ?: "Ee chat"} lo photos, videos, voice ee phone nunchi delete avutayi.", color = Muted) },
-            confirmButton = { TextButton(onClick = { Chat.clearChatMedia(p); clearPeer = null }) { Text("Clear", color = Danger) } },
-            dismissButton = { TextButton(onClick = { clearPeer = null }) { Text("Cancel", color = Muted) } },
+            title = { Text(tr("Clear media?")) },
+            text = { Text(tr("Photos, videos and voice in {0} will be deleted from this phone.", Chat.db.peer(p)?.name ?: tr("Chat")), color = Muted) },
+            confirmButton = { TextButton(onClick = { Chat.clearChatMedia(p); clearPeer = null }) { Text(tr("Clear"), color = Danger) } },
+            dismissButton = { TextButton(onClick = { clearPeer = null }) { Text(tr("Cancel"), color = Muted) } },
             containerColor = BubbleThem,
         )
     }
@@ -453,28 +453,28 @@ fun ChatsSettingsScreen(onBack: () -> Unit, openStarred: () -> Unit) {
     var askRestore by remember { mutableStateOf(false) }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
-            busy = true; backupMsg = "Backup avutundi..."
+            busy = true; backupMsg = tr("Backing up…")
             scope.launch {
                 val r = withContext(Dispatchers.IO) { Backup.export(ctx, uri) }
                 busy = false
-                backupMsg = r.fold({ "Backup ready ✅ ($it media files)" }, { "Backup fail: ${it.message}" })
+                backupMsg = r.fold({ tr("Backup ready ✅ ({0} media files)", it) }, { tr("Backup failed: {0}", it.message ?: "") })
             }
         }
     }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            busy = true; backupMsg = "Restore avutundi..."
+            busy = true; backupMsg = tr("Restoring…")
             scope.launch {
                 val r = withContext(Dispatchers.IO) { Backup.restore(ctx, uri) }
                 busy = false
-                r.fold({ Backup.restartApp(ctx) }, { backupMsg = "Restore fail: ${it.message}" })
+                r.fold({ Backup.restartApp(ctx) }, { backupMsg = tr("Restore failed: {0}", it.message ?: "") })
             }
         }
     }
-    SubPage("Chats", onBack) {
-        Caps("Theme")
+    SubPage(tr("Chats"), onBack) {
+        Caps(tr("Theme"))
         Card {
-            listOf(0 to "Phone setting", 1 to "Light", 2 to "Dark").forEach { (v, label) ->
+            listOf(0 to tr("Phone setting"), 1 to tr("Light"), 2 to tr("Dark")).forEach { (v, label) ->
                 Row(
                     Modifier.fillMaxWidth().clickable {
                         mode = v; Chat.themeMode = v; applyTheme(ctx)
@@ -489,31 +489,31 @@ fun ChatsSettingsScreen(onBack: () -> Unit, openStarred: () -> Unit) {
                 }
             }
         }
-        Caps("Chat backup")
+        Caps(tr("Chat backup"))
         Card {
             Text(
-                "Chats, photos, videos, voice annee okka file lo save avutayi. File picker lo Google Drive select chesthe Drive lo untundi.",
+                tr("Chats, photos, videos and voice are saved in one file. Pick Google Drive in the file picker to save it there."),
                 fontSize = 13.sp, lineHeight = 19.sp, color = Muted, modifier = Modifier.padding(16.dp),
             )
-            LinkRow("Back up now", sub = "Flikkchat-backup .zip") {
+            LinkRow(tr("Back up now"), sub = "Flikkchat-backup .zip") {
                 if (!busy) exportLauncher.launch("Flikkchat-backup-" + SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) + ".zip")
             }
-            LinkRow("Restore from backup", sub = "Ippati chats replace avutayi") { if (!busy) askRestore = true }
+            LinkRow(tr("Restore from backup"), sub = tr("Current chats will be replaced")) { if (!busy) askRestore = true }
             backupMsg?.let { Text(it, color = Accent, fontSize = 13.sp, modifier = Modifier.padding(16.dp)) }
         }
-        Card { LinkRow("Starred messages", onClick = openStarred) }
+        Card { LinkRow(tr("Starred messages"), onClick = openStarred) }
     }
     if (askRestore) {
         AlertDialog(
             onDismissRequest = { askRestore = false },
-            title = { Text("Restore backup?") },
-            text = { Text("Ippudu phone lo unna chats backup file lo unna chats tho replace avutayi. App restart avutundi.", color = Muted) },
+            title = { Text(tr("Restore backup?")) },
+            text = { Text(tr("Chats on this phone will be replaced with the backup. The app will restart."), color = Muted) },
             confirmButton = {
                 TextButton(onClick = { askRestore = false; importLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) {
-                    Text("Choose file", color = Accent)
+                    Text(tr("Choose file"), color = Accent)
                 }
             },
-            dismissButton = { TextButton(onClick = { askRestore = false }) { Text("Cancel", color = Muted) } },
+            dismissButton = { TextButton(onClick = { askRestore = false }) { Text(tr("Cancel"), color = Muted) } },
             containerColor = BubbleThem,
         )
     }
@@ -531,10 +531,10 @@ fun LockScreen(onUnlock: () -> Unit) {
             Icon(Icons.Filled.Lock, null, tint = Color.White, modifier = Modifier.size(38.dp))
         }
         Spacer(Modifier.height(22.dp))
-        Text("Flikkchat locked", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+        Text(tr("Flikkchat locked"), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(Modifier.height(8.dp))
-        Text("Open cheyyadaniki fingerprint / screen lock vaadandi", color = NavMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
+        Text(tr("Use your fingerprint / screen lock to open"), color = NavMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(36.dp))
-        PillButton("Unlock", bg = Color.White, fg = NavBg, onClick = onUnlock)
+        PillButton(tr("Unlock"), bg = Color.White, fg = NavBg, onClick = onUnlock)
     }
 }

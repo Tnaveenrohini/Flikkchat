@@ -184,14 +184,14 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
             Avatar(name, 40.dp)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(if (isMine) "My status" else name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(if (isMine) tr("My status") else name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Text(longTime(cur.ts), color = Color(0xFFD9D3F5), fontSize = 12.sp)
             }
             if (isMine) IconButton(onClick = {
                 Chat.deleteMyStatus(cur)
                 if (index > 0 && index >= list.lastIndex) index--
-            }) { Icon(Icons.Filled.Delete, "Delete status", tint = Color.White) }
-            IconButton(onClick = onDone) { Icon(Icons.Filled.Close, "Close status", tint = Color.White) }
+            }) { Icon(Icons.Filled.Delete, tr("Delete status"), tint = Color.White) }
+            IconButton(onClick = onDone) { Icon(Icons.Filled.Close, tr("Close status"), tint = Color.White) }
         }
         // Content (tap left/right)
         Box(
@@ -212,7 +212,7 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 30.dp)) {
                     AsyncImage(
-                        model = File(cur.media), contentDescription = "Status photo", contentScale = ContentScale.Crop,
+                        model = File(cur.media), contentDescription = tr("Status photo"), contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxWidth().aspectRatio(300f / 360f).clip(RoundedCornerShape(24.dp)).background(Color(0xFF241E3D)),
                     )
                     if (cur.text.isNotBlank()) {
@@ -233,15 +233,15 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
             ) {
                 Icon(Icons.Filled.Visibility, null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("${views.size} views", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(tr("{0} views", views.size), color = Color.White, fontWeight = FontWeight.SemiBold)
             }
             if (showViews) {
                 AlertDialog(
                     onDismissRequest = { showViews = false },
-                    title = { Text("Viewed by ${views.size}") },
+                    title = { Text(tr("Viewed by {0}", views.size)) },
                     text = {
                         Column {
-                            if (views.isEmpty()) Text("Inka evaru chudaledu", color = Muted)
+                            if (views.isEmpty()) Text(tr("No views yet"), color = Muted)
                             views.forEach { u ->
                                 Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Avatar(Chat.nameOf(u), 32.dp)
@@ -251,7 +251,7 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
                             }
                         }
                     },
-                    confirmButton = { TextButton(onClick = { showViews = false }) { Text("OK", color = Accent) } },
+                    confirmButton = { TextButton(onClick = { showViews = false }) { Text(tr("OK"), color = Accent) } },
                     containerColor = BubbleThem,
                 )
             }
@@ -265,7 +265,7 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
                         .border(1.5.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(25.dp)).padding(horizontal = 18.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
-                    if (reply.isEmpty()) Text("Reply…", color = Color.White.copy(alpha = 0.75f), fontSize = 15.sp)
+                    if (reply.isEmpty()) Text(tr("Reply…"), color = Color.White.copy(alpha = 0.75f), fontSize = 15.sp)
                     BasicTextField(
                         value = reply, onValueChange = { reply = it }, singleLine = true,
                         textStyle = TextStyle(fontFamily = Jakarta, fontSize = 15.sp, color = Color.White),
@@ -277,16 +277,16 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
                     Modifier.size(50.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.16f)).clickable {
                         if (reply.isNotBlank()) {
                             Chat.replyToStatus(cur, reply.trim()); reply = ""
-                            Toast.makeText(ctx, "Reply pampam ✅", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(ctx, tr("Reply sent ✅"), Toast.LENGTH_SHORT).show()
                         } else {
                             Chat.replyToStatus(cur, "❤️")
-                            Toast.makeText(ctx, "❤️ pampam", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(ctx, tr("❤️ sent"), Toast.LENGTH_SHORT).show()
                         }
                     },
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (reply.isNotBlank()) Icon(Icons.AutoMirrored.Filled.Send, "Send reply", tint = Color.White, modifier = Modifier.size(22.dp))
-                    else Icon(Icons.Filled.FavoriteBorder, "Like status", tint = Color.White, modifier = Modifier.size(22.dp))
+                    if (reply.isNotBlank()) Icon(Icons.AutoMirrored.Filled.Send, tr("Send reply"), tint = Color.White, modifier = Modifier.size(22.dp))
+                    else Icon(Icons.Filled.FavoriteBorder, tr("Like status"), tint = Color.White, modifier = Modifier.size(22.dp))
                 }
             }
         }

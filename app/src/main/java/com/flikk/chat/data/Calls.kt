@@ -160,7 +160,7 @@ object Calls {
                     if (_state.value?.phase == Phase.OUTGOING) end("No answer", remoteState = "missed")
                 }
             } catch (e: Exception) {
-                end("Call fail: ${e.message}")
+                end("Call failed")
             }
         }
     }
@@ -203,7 +203,7 @@ object Calls {
             try {
                 val doc = call().document(st.id).get().await()
                 @Suppress("UNCHECKED_CAST")
-                val offer = doc.get("offer") as? Map<String, Any> ?: error("Offer ledu")
+                val offer = doc.get("offer") as? Map<String, Any> ?: error("No offer")
                 setupPeer(st.id, st.video, isCaller = false)
                 setRemote(SessionDescription(SessionDescription.Type.OFFER, offer["sdp"] as String))
                 val answer = createSdp(offer = false)
@@ -215,7 +215,7 @@ object Calls {
                     )
                 ).await()
             } catch (e: Exception) {
-                end("Call fail: ${e.message}")
+                end("Call failed")
             }
         }
     }
@@ -297,7 +297,7 @@ object Calls {
                             }
                         }
                         PeerConnection.IceConnectionState.FAILED ->
-                            end("Connection fail (network block chesindi — TURN server kavali)", remoteState = "ended")
+                            end("Connection failed (network blocked, TURN server needed)", remoteState = "ended")
                         else -> {}
                     }
                 }
@@ -314,7 +314,7 @@ object Calls {
             override fun onRemoveStream(s: MediaStream) {}
             override fun onDataChannel(d: DataChannel) {}
             override fun onRenegotiationNeeded() {}
-        }) ?: error("PeerConnection create avvaledu")
+        }) ?: error("Could not start call")
         pc = peer
 
         audioSource = f.createAudioSource(MediaConstraints())
@@ -365,7 +365,7 @@ object Calls {
                         try {
                             _state.value = _state.value?.copy(phase = Phase.CONNECTING)
                             setRemote(SessionDescription(SessionDescription.Type.ANSWER, ans["sdp"] as String))
-                        } catch (e: Exception) { end("Call fail: ${e.message}") }
+                        } catch (e: Exception) { end("Call failed") }
                     }
                 } else if (!isCaller && _state.value?.phase == Phase.INCOMING) {
                     // Vere device lo answer chesaru

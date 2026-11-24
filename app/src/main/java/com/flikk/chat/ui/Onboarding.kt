@@ -108,8 +108,8 @@ fun WelcomeScreen(onStart: () -> Unit) {
             .padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 34.dp),
     ) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            WBubble("Namaskaram!", left = true, Modifier.offset(x = 10.dp, y = 60.dp))
-            WBubble("Bagunnara?", left = false, Modifier.align(Alignment.TopEnd).offset(x = (-6).dp, y = 130.dp))
+            WBubble(tr("Namaskaram!"), left = true, Modifier.offset(x = 10.dp, y = 60.dp))
+            WBubble(tr("How are you?"), left = false, Modifier.align(Alignment.TopEnd).offset(x = (-6).dp, y = 130.dp))
             Row(
                 Modifier.offset(x = 40.dp, y = 210.dp).clip(RoundedCornerShape(22.dp, 22.dp, 22.dp, 6.dp))
                     .background(Color(0xFF2A2D3A)).padding(horizontal = 14.dp, vertical = 12.dp),
@@ -134,22 +134,22 @@ fun WelcomeScreen(onStart: () -> Unit) {
             ) {
                 Icon(Icons.Filled.Videocam, null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Video call", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr("Video call"), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
         }
         Box(Modifier.size(60.dp).clip(RoundedCornerShape(20.dp)).background(LightPalette.accent), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.Chat, null, tint = Color.White, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(14.dp))
-        Text("Mee vaallatho,\neppudu daggaraga.", color = Color.White, fontSize = 38.sp, lineHeight = 40.sp,
+        Text(tr("Close to your people,\nalways."), color = Color.White, fontSize = 38.sp, lineHeight = 40.sp,
             fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.2).sp)
         Spacer(Modifier.height(14.dp))
-        Text("Free messages, voice and video calls. Mee chats mee phone lone untayi.",
+        Text(tr("Free messages, voice and video calls. Your chats stay on your phone."),
             color = Color(0xFFC3C5D3), fontSize = 16.sp, lineHeight = 24.sp)
         Spacer(Modifier.height(28.dp))
-        PillButton("Get started", bg = Color.White, fg = NavBg, onClick = onStart)
+        PillButton(tr("Get started"), bg = Color.White, fg = NavBg, onClick = onStart)
         Spacer(Modifier.height(14.dp))
-        Text("Continue chesthe, Flikkchat Terms and Privacy Policy ki agree ainattu.",
+        Text(tr("By continuing, you agree to the Flikkchat Terms and Privacy Policy."),
             color = NavMuted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     }
 }
@@ -175,15 +175,15 @@ fun PhoneLoginScreen(onBack: () -> Unit, onNext: (String) -> Unit) {
             .padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 34.dp),
     ) {
         IconButton(onClick = onBack, modifier = Modifier.offset(x = (-10).dp)) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.height(22.dp))
-        Text("Mee phone number enter cheyyandi", fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold,
+        Text(tr("Enter your phone number"), fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold,
             letterSpacing = (-0.8).sp, color = Ink)
         Spacer(Modifier.height(10.dp))
-        Text("Mee friends mimmalni ee number tho Flikkchat lo kanukuntaru.", fontSize = 15.sp, lineHeight = 22.sp, color = Muted)
+        Text(tr("Your friends will find you on Flikkchat with this number."), fontSize = 15.sp, lineHeight = 22.sp, color = Muted)
         Spacer(Modifier.height(30.dp))
-        Text("Country", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DayInk)
+        Text(tr("Country"), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DayInk)
         Spacer(Modifier.height(8.dp))
         Row(
             Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(16.dp))
@@ -191,7 +191,7 @@ fun PhoneLoginScreen(onBack: () -> Unit, onNext: (String) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) { Text("🇮🇳  India", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Ink) }
         Spacer(Modifier.height(18.dp))
-        Text("Phone number", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DayInk)
+        Text(tr("Phone number"), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DayInk)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(76.dp, 56.dp).clip(RoundedCornerShape(16.dp)).background(Surface), contentAlignment = Alignment.Center) {
@@ -202,9 +202,9 @@ fun PhoneLoginScreen(onBack: () -> Unit, onNext: (String) -> Unit) {
         }
         error?.let { Text(it, color = Danger, fontSize = 13.sp) }
         Spacer(Modifier.weight(1f))
-        PillButton("Next", enabled = phone.count { it.isDigit() } == 10) {
+        PillButton(tr("Next"), enabled = phone.count { it.isDigit() } == 10) {
             val n = Chat.normalize("+91" + phone.filter { it.isDigit() })
-            if (n == null) error = "10 digits number ivvandi" else onNext(n)
+            if (n == null) error = tr("Enter a 10-digit number") else onNext(n)
         }
     }
 }
@@ -214,7 +214,7 @@ fun PhoneLoginScreen(onBack: () -> Unit, onNext: (String) -> Unit) {
 @Composable
 fun ProfileSetupScreen(phone: String, onBack: () -> Unit, onDone: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
-    var about by rememberSaveable { mutableStateOf("Hey there! I am on Flikkchat") }
+    var about by rememberSaveable { mutableStateOf(tr("Hey there! I am on Flikkchat")) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var needPin by remember { mutableStateOf(false) }
@@ -226,16 +226,16 @@ fun ProfileSetupScreen(phone: String, onBack: () -> Unit, onDone: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.offset(x = (-10).dp)) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp))
             }
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 repeat(2) { Box(Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp)).background(Accent)) }
             }
         }
         Spacer(Modifier.height(20.dp))
-        Text("Mee profile", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp, color = Ink)
+        Text(tr("Your profile"), fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp, color = Ink)
         Spacer(Modifier.height(10.dp))
-        Text("Mee contacts ki mee peru, about kanipistayi.", fontSize = 15.sp, color = Muted)
+        Text(tr("Your contacts will see your name and about."), fontSize = 15.sp, color = Muted)
         Spacer(Modifier.height(30.dp))
         Box(Modifier.align(Alignment.CenterHorizontally)) {
             if (name.isBlank()) Box(Modifier.size(128.dp).clip(RoundedCornerShape(44.dp)).background(Surface), contentAlignment = Alignment.Center) {
@@ -243,7 +243,7 @@ fun ProfileSetupScreen(phone: String, onBack: () -> Unit, onDone: () -> Unit) {
             } else Avatar(name, 128.dp, rounded = 44.dp)
         }
         Spacer(Modifier.height(30.dp))
-        BoxField("Name", name, { name = it.take(40) }, focused = true)
+        BoxField(tr("Name"), name, { name = it.take(40) }, focused = true)
         Spacer(Modifier.height(18.dp))
         BoxField(tr("About"), about, { about = it.take(140) })
         if (needPin) {
@@ -257,7 +257,7 @@ fun ProfileSetupScreen(phone: String, onBack: () -> Unit, onDone: () -> Unit) {
             Spacer(Modifier.width(5.dp))
             Text(phone, color = Muted, fontSize = 13.sp)
         }
-        PillButton("Start chatting", enabled = name.isNotBlank(), busy = busy) {
+        PillButton(tr("Start chatting"), enabled = name.isNotBlank(), busy = busy) {
             busy = true; error = null
             scope.launch {
                 val err = Chat.register(name, phone, if (needPin) pin else null)

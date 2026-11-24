@@ -166,7 +166,7 @@ fun Header(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (onBack != null) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp)) }
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp)) }
             } else {
                 Spacer(Modifier.width(14.dp))
             }
@@ -186,7 +186,7 @@ fun Header(
                     if (!subtitle.isNullOrEmpty()) {
                         Text(
                             subtitle, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                            color = if (subtitle.contains("typing") || subtitle == "online") Online else subtitleColor,
+                            color = subtitleColor,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -246,10 +246,10 @@ fun Avatar(name: String, size: Dp = 54.dp, rounded: Dp? = null) {
 fun Ticks(status: Int, size: Dp = 16.dp, onAccent: Boolean = false) {
     val dim = if (onAccent) OnAccentMuted else Muted
     when (status) {
-        0 -> Icon(Icons.Filled.Schedule, "Pending", tint = dim, modifier = Modifier.size(size - 3.dp))
-        1 -> Icon(Icons.Filled.Done, "Sent", tint = dim, modifier = Modifier.size(size))
-        2 -> Icon(Icons.Filled.DoneAll, "Delivered", tint = dim, modifier = Modifier.size(size))
-        else -> Icon(Icons.Filled.DoneAll, "Read", tint = if (onAccent) ReadMint else Accent, modifier = Modifier.size(size))
+        0 -> Icon(Icons.Filled.Schedule, tr("Pending"), tint = dim, modifier = Modifier.size(size - 3.dp))
+        1 -> Icon(Icons.Filled.Done, tr("Sent"), tint = dim, modifier = Modifier.size(size))
+        2 -> Icon(Icons.Filled.DoneAll, tr("Delivered"), tint = dim, modifier = Modifier.size(size))
+        else -> Icon(Icons.Filled.DoneAll, tr("Read"), tint = if (onAccent) ReadMint else Accent, modifier = Modifier.size(size))
     }
 }
 
@@ -265,7 +265,7 @@ fun listTime(ts: Long): String {
     val now = System.currentTimeMillis()
     return when {
         sameDay(ts, now) -> clock(ts)
-        sameDay(ts, now - 86_400_000L) -> "Yesterday"
+        sameDay(ts, now - 86_400_000L) -> tr("Yesterday")
         now - ts < 6 * 86_400_000L -> SimpleDateFormat("EEE", Locale.getDefault()).format(Date(ts))
         else -> SimpleDateFormat("dd/MM/yy", Locale.getDefault()).format(Date(ts))
     }
@@ -276,9 +276,9 @@ fun longTime(ts: Long): String {
     val now = System.currentTimeMillis()
     val t = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(ts))
     return when {
-        now - ts < 60 * 60_000L -> "${((now - ts) / 60_000L).coerceAtLeast(1)} minutes ago"
-        sameDay(ts, now) -> "Today, $t"
-        sameDay(ts, now - 86_400_000L) -> "Yesterday, $t"
+        now - ts < 60 * 60_000L -> tr("{0} minutes ago", ((now - ts) / 60_000L).coerceAtLeast(1))
+        sameDay(ts, now) -> tr("Today") + ", $t"
+        sameDay(ts, now - 86_400_000L) -> tr("Yesterday") + ", $t"
         else -> SimpleDateFormat("EEE, h:mm a", Locale.getDefault()).format(Date(ts))
     }
 }
@@ -286,8 +286,8 @@ fun longTime(ts: Long): String {
 fun dayLabel(ts: Long): String {
     val now = System.currentTimeMillis()
     return when {
-        sameDay(ts, now) -> "Today"
-        sameDay(ts, now - 86_400_000L) -> "Yesterday"
+        sameDay(ts, now) -> tr("Today")
+        sameDay(ts, now - 86_400_000L) -> tr("Yesterday")
         else -> SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(Date(ts))
     }
 }
@@ -297,9 +297,9 @@ fun lastSeen(ts: Long): String {
     val now = System.currentTimeMillis()
     val t = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(ts))
     return when {
-        sameDay(ts, now) -> "last seen today at $t"
-        sameDay(ts, now - 86_400_000L) -> "last seen yesterday at $t"
-        else -> "last seen " + SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()).format(Date(ts))
+        sameDay(ts, now) -> tr("last seen today at {0}", t)
+        sameDay(ts, now - 86_400_000L) -> tr("last seen yesterday at {0}", t)
+        else -> tr("last seen") + " " + SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()).format(Date(ts))
     }
 }
 

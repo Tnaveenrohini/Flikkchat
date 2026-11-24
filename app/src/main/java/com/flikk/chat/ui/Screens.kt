@@ -122,8 +122,8 @@ fun SetupScreen() {
         Brand(32.sp)
         Spacer(Modifier.height(16.dp))
         Text(
-            "Firebase setup inka avvaledu.\n\ngoogle-services.json file ni repo lo app/ folder lo pettandi, " +
-                "kotha APK build ayyaka chat start avutundi.",
+            tr("Firebase is not set up yet.\n\nPut google-services.json in the app/ folder of the repo, ") +
+                tr("chat will start after the new APK is built."),
             textAlign = TextAlign.Center, color = Muted,
         )
     }
@@ -161,9 +161,9 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
     val invite = {
         val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
             Intent.EXTRA_TEXT,
-            "Hey! Flikkchat lo chat cheddam 💬 Made in India app 🇮🇳\nhttps://github.com/Tnaveenrohini/Flikkchat/releases/latest"
+            tr("Hey! Let's chat on Flikkchat 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Flikkchat/releases/latest"
         )
-        ctx.startActivity(Intent.createChooser(i, "Invite"))
+        ctx.startActivity(Intent.createChooser(i, tr("Invite")))
     }
     val shown = contacts.orEmpty().filter {
         q.isBlank() || it.name.contains(q.trim(), true) || it.phone.filter { c -> c.isDigit() }.contains(q.filter { c -> c.isDigit() }.ifEmpty { "\u0000" })
@@ -175,26 +175,26 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
                 Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp)) }
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp)) }
                 Column {
-                    Text("New chat", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
-                    Text(contacts?.let { "${it.size} contacts on Flikkchat" } ?: "Contacts chustunnam…", fontSize = 12.sp, color = Muted)
+                    Text(tr("New chat"), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    Text(contacts?.let { tr("{0} contacts on Flikkchat", it.size) } ?: tr("Finding contacts…"), fontSize = 12.sp, color = Muted)
                 }
             }
-            Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 10.dp)) { SearchPill(q, { q = it }, "Search name or number") }
-            ShortcutRow(Icons.Filled.GroupAdd, "New group", openNewGroup)
-            ShortcutRow(Icons.Filled.PersonAdd, "New contact") {
+            Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 10.dp)) { SearchPill(q, { q = it }, tr("Search name or number")) }
+            ShortcutRow(Icons.Filled.GroupAdd, tr("New group"), openNewGroup)
+            ShortcutRow(Icons.Filled.PersonAdd, tr("New contact")) {
                 addContact.launch(Intent(Intent.ACTION_INSERT).setType(ContactsContract.Contacts.CONTENT_TYPE))
             }
-            ShortcutRow(Icons.Filled.Link, "Invite with link") { invite() }
-            SectionLabel("Contacts on Flikkchat")
+            ShortcutRow(Icons.Filled.Link, tr("Invite with link")) { invite() }
+            SectionLabel(tr("Contacts on Flikkchat"))
         }
         when {
             !granted -> item {
                 Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Friends ni chudataniki contacts permission kavali", color = Muted, textAlign = TextAlign.Center)
+                    Text(tr("Allow contacts to find your friends"), color = Muted, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(14.dp))
-                    PillButton("Allow contacts") { launcher.launch(Manifest.permission.READ_CONTACTS) }
+                    PillButton(tr("Allow contacts")) { launcher.launch(Manifest.permission.READ_CONTACTS) }
                 }
             }
             contacts == null -> item {
@@ -202,7 +202,7 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
             }
             shown.isEmpty() -> item {
                 Text(
-                    if (q.isNotBlank()) "\"$q\" dorakaledu" else "Mee contacts lo inka evaru Flikkchat lo levu.\nPaina 'Invite with link' tho pilavandi!",
+                    if (q.isNotBlank()) tr("No results for \"{0}\"", q) else tr("None of your contacts are on Flikkchat yet.\nInvite them with 'Invite with link' above!"),
                     color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp,
                     modifier = Modifier.fillMaxWidth().padding(28.dp),
                 )

@@ -198,14 +198,14 @@ fun ChatScreen(
     }
     LaunchedEffect(version) { withContext(Dispatchers.IO) { Chat.markRead(peer) } }
 
-    val name = local?.name?.takeIf { it.isNotBlank() } ?: groupInfo?.name ?: state?.name ?: "Chat"
+    val name = local?.name?.takeIf { it.isNotBlank() } ?: groupInfo?.name ?: state?.name ?: tr("Chat")
     val amMember = !group || (groupInfo?.members?.contains(Chat.me) ?: true)
     val subtitle = if (group) {
         groupInfo?.members?.joinToString(", ") { Chat.nameOf(it) }
     } else state?.let { s ->
         when {
-            s.typingTo == Chat.me && now - s.typingAt < Chat.TYPING_WINDOW_MS -> "typing..."
-            now - s.lastActive < Chat.ONLINE_WINDOW_MS -> "online"
+            s.typingTo == Chat.me && now - s.typingAt < Chat.TYPING_WINDOW_MS -> tr("typing...")
+            now - s.lastActive < Chat.ONLINE_WINDOW_MS -> tr("online")
             else -> lastSeen(s.lastActive)
         }
     }
@@ -238,7 +238,7 @@ fun ChatScreen(
     var recStart by remember { mutableLongStateOf(0L) }
     DisposableEffect(Unit) { onDispose { recorder.cancel() } }
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        if (!ok) Toast.makeText(ctx, "Voice message ki mic permission kavali", Toast.LENGTH_SHORT).show()
+        if (!ok) Toast.makeText(ctx, tr("Microphone permission needed for voice messages"), Toast.LENGTH_SHORT).show()
     }
     fun startRec() {
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -246,13 +246,13 @@ fun ChatScreen(
         }
         VoicePlayer.stop()
         if (recorder.start(UUID.randomUUID().toString())) { recording = true; recStart = System.currentTimeMillis() }
-        else Toast.makeText(ctx, "Recording start avvaledu", Toast.LENGTH_SHORT).show()
+        else Toast.makeText(ctx, tr("Could not start recording"), Toast.LENGTH_SHORT).show()
     }
     fun stopRec(send: Boolean) {
         recording = false
         if (!send) { recorder.cancel(); return }
         val r = recorder.stop()
-        if (r == null) Toast.makeText(ctx, "Chala chinna recording", Toast.LENGTH_SHORT).show()
+        if (r == null) Toast.makeText(ctx, tr("Recording too short"), Toast.LENGTH_SHORT).show()
         else { Chat.sendVoice(peer, r.first, r.second, replyTo); replyTo = null }
     }
 
@@ -286,24 +286,24 @@ fun ChatScreen(
     val contactPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
         if (uri != null) {
             val reply = replyTo; replyTo = null
-            scope.launch { Chat.shareContact(peer, uri, reply)?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show() } }
+            scope.launch { Chat.shareContact(peer, uri, reply)?.let { Toast.makeText(ctx, tr(it), Toast.LENGTH_LONG).show() } }
         }
     }
     val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             val reply = replyTo; replyTo = null
-            scope.launch { Chat.sendAudioFile(peer, uri, reply)?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show() } }
+            scope.launch { Chat.sendAudioFile(peer, uri, reply)?.let { Toast.makeText(ctx, tr(it), Toast.LENGTH_LONG).show() } }
         }
     }
     val locPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
         if (res.values.any { it }) {
-            Toast.makeText(ctx, "Location teesukuntunnam…", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, tr("Getting location…"), Toast.LENGTH_SHORT).show()
             val reply = replyTo; replyTo = null
-            scope.launch { Chat.shareLocation(peer, reply)?.let { Toast.makeText(ctx, it, Toast.LENGTH_LONG).show() } }
-        } else Toast.makeText(ctx, "Location permission kavali", Toast.LENGTH_SHORT).show()
+            scope.launch { Chat.shareLocation(peer, reply)?.let { Toast.makeText(ctx, tr(it), Toast.LENGTH_LONG).show() } }
+        } else Toast.makeText(ctx, tr("Location permission needed"), Toast.LENGTH_SHORT).show()
     }
     val contactsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        if (ok) contactPicker.launch(null) else Toast.makeText(ctx, "Contacts permission kavali", Toast.LENGTH_SHORT).show()
+        if (ok) contactPicker.launch(null) else Toast.makeText(ctx, tr("Contacts permission needed"), Toast.LENGTH_SHORT).show()
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -318,7 +318,7 @@ fun ChatScreen(
                 onCopy = {
                     val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     cm.setPrimaryClip(ClipData.newPlainText("message", sel.text))
-                    Toast.makeText(ctx, "Copied", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, tr("Copied"), Toast.LENGTH_SHORT).show()
                     selected = null
                 },
                 onForward = { selected = null; openForward(sel.id) },
@@ -327,29 +327,30 @@ fun ChatScreen(
         } else {
             Header(
                 title = name, subtitle = subtitle, onBack = onBack,
+                subtitleColor = if (!group && state?.let { s -> (s.typingTo == Chat.me && now - s.typingAt < Chat.TYPING_WINDOW_MS) || now - s.lastActive < Chat.ONLINE_WINDOW_MS } == true) Online else Muted,
                 leading = { Avatar(name, 42.dp) },
                 onTitleClick = if (group) ({ openGroupInfo(gidOf(peer)) }) else ({ openContactInfo(peer) }),
                 actions = {
-                    if (timer > 0) Icon(Icons.Filled.Timer, "Disappearing", tint = Accent, modifier = Modifier.size(20.dp))
+                    if (timer > 0) Icon(Icons.Filled.Timer, tr("Disappearing"), tint = Accent, modifier = Modifier.size(20.dp))
                     if (!group && !blocked) {
-                        IconButton(onClick = { caller(peer, true) }) { Icon(Icons.Filled.Videocam, "Video call") }
-                        IconButton(onClick = { caller(peer, false) }) { Icon(Icons.Filled.Call, "Voice call") }
+                        IconButton(onClick = { caller(peer, true) }) { Icon(Icons.Filled.Videocam, tr("Video call")) }
+                        IconButton(onClick = { caller(peer, false) }) { Icon(Icons.Filled.Call, tr("Voice call")) }
                     }
                     Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menu") }
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, tr("Menu")) }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            if (group) DropdownMenuItem(text = { Text("Group info") }, onClick = { menu = false; openGroupInfo(gidOf(peer)) })
+                            if (group) DropdownMenuItem(text = { Text(tr("Group info")) }, onClick = { menu = false; openGroupInfo(gidOf(peer)) })
                             DropdownMenuItem(text = { Text(tr("Media, links & docs")) }, onClick = { menu = false; openMediaLinks(peer) })
                             DropdownMenuItem(text = { Text(tr("Disappearing messages")) }, onClick = { menu = false; askTimer = true })
-                            if (!group) DropdownMenuItem(text = { Text("Encryption 🔒") }, onClick = {
+                            if (!group) DropdownMenuItem(text = { Text(tr("Encryption 🔒")) }, onClick = {
                                 menu = false
                                 scope.launch {
-                                    showCode = withContext(Dispatchers.IO) { Chat.safetyCode(peer) } ?: "Ee contact paata app vaadutunnaru — encryption ledu"
+                                    showCode = withContext(Dispatchers.IO) { Chat.safetyCode(peer) } ?: tr("This contact uses an old app version — no encryption")
                                 }
                             })
-                            DropdownMenuItem(text = { Text("Clear chat") }, onClick = { menu = false; askClear = true })
+                            DropdownMenuItem(text = { Text(tr("Clear chat")) }, onClick = { menu = false; askClear = true })
                             if (!group) DropdownMenuItem(
-                                text = { Text(if (blocked) "Unblock" else "Block", color = if (blocked) Color.White else Danger) },
+                                text = { Text(if (blocked) tr("Unblock") else tr("Block"), color = if (blocked) Color.White else Danger) },
                                 onClick = { menu = false; Chat.setBlocked(peer, !blocked) },
                             )
                         }
@@ -408,7 +409,7 @@ fun ChatScreen(
                         Icon(Icons.Filled.Lock, null, tint = E2eInk, modifier = Modifier.size(14.dp).padding(top = 1.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            "Messages are end-to-end encrypted and saved only on your phone.",
+                            tr("Messages are end-to-end encrypted and saved only on your phone."),
                             fontSize = 11.5.sp, lineHeight = 16.sp, color = E2eInk, textAlign = TextAlign.Center,
                         )
                     }
@@ -418,7 +419,7 @@ fun ChatScreen(
 
         if (blocked) {
             Text(
-                "Meeru ee contact ni block chesaru. Unblock cheyyadaniki tap cheyyandi.",
+                tr("You blocked this contact. Tap to unblock."),
                 color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp,
                 modifier = Modifier.fillMaxWidth().clickable { Chat.setBlocked(peer, false) }
                     .navigationBarsPadding().padding(18.dp),
@@ -431,7 +432,7 @@ fun ChatScreen(
             )
         } else if (!amMember) {
             Text(
-                "Meeru ee group lo member kaadu",
+                tr("You are no longer a member of this group"),
                 color = Muted, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(18.dp),
             )
@@ -444,11 +445,11 @@ fun ChatScreen(
             ) {
                 Box(Modifier.width(4.dp).height(48.dp).background(Accent))
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 6.dp)) {
-                    Text(if (r.fromMe) "You" else Chat.nameOf(r.sender.ifEmpty { r.peer }),
+                    Text(if (r.fromMe) tr("You") else Chat.nameOf(r.sender.ifEmpty { r.peer }),
                         color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Text(preview(r), color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                IconButton(onClick = { replyTo = null }) { Icon(Icons.Filled.Close, "Cancel reply", tint = Muted) }
+                IconButton(onClick = { replyTo = null }) { Icon(Icons.Filled.Close, tr("Cancel reply"), tint = Muted) }
             }
         }
 
@@ -462,15 +463,15 @@ fun ChatScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (recording) {
-                    IconButton(onClick = { stopRec(false) }) { Icon(Icons.Filled.Delete, "Cancel recording", tint = Danger) }
+                    IconButton(onClick = { stopRec(false) }) { Icon(Icons.Filled.Delete, tr("Cancel recording"), tint = Danger) }
                     Box(Modifier.size(10.dp).clip(CircleShape).background(EndRed))
                     Spacer(Modifier.width(8.dp))
                     Text(duration(now - recStart), color = Ink, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(8.dp))
-                    Text("Recording...", color = Muted, fontSize = 13.sp)
+                    Text(tr("Recording..."), color = Muted, fontSize = 13.sp)
                 } else {
                     Box(Modifier.weight(1f).padding(start = 12.dp, top = 12.dp, bottom = 12.dp)) {
-                        if (text.isEmpty()) Text("Message", color = Muted, fontSize = 15.sp)
+                        if (text.isEmpty()) Text(tr("Message"), color = Muted, fontSize = 15.sp)
                         BasicTextField(
                             value = text,
                             onValueChange = { text = it; if (it.isNotEmpty()) Chat.typing(peer) },
@@ -481,10 +482,10 @@ fun ChatScreen(
                         )
                     }
                     IconButton(onClick = { showAttach = true }, modifier = Modifier.size(40.dp, 44.dp)) {
-                        Icon(Icons.Filled.AttachFile, "Attach", tint = Muted, modifier = Modifier.size(21.dp))
+                        Icon(Icons.Filled.AttachFile, tr("Attach"), tint = Muted, modifier = Modifier.size(21.dp))
                     }
                     if (text.isEmpty()) IconButton(onClick = { takePhoto() }, modifier = Modifier.size(40.dp, 44.dp)) {
-                        Icon(Icons.Outlined.PhotoCamera, "Camera", tint = Muted, modifier = Modifier.size(21.dp))
+                        Icon(Icons.Outlined.PhotoCamera, tr("Camera"), tint = Muted, modifier = Modifier.size(21.dp))
                     }
                 }
             }
@@ -500,8 +501,8 @@ fun ChatScreen(
                 },
                 contentAlignment = Alignment.Center,
             ) {
-                if (canSend) Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = Color.White, modifier = Modifier.size(22.dp))
-                else Icon(Icons.Filled.Mic, "Record voice message", tint = Color.White, modifier = Modifier.size(22.dp))
+                if (canSend) Icon(Icons.AutoMirrored.Filled.Send, tr("Send"), tint = Color.White, modifier = Modifier.size(22.dp))
+                else Icon(Icons.Filled.Mic, tr("Record voice message"), tint = Color.White, modifier = Modifier.size(22.dp))
             }
         }
         }
@@ -545,13 +546,13 @@ fun ChatScreen(
     }
 
     if (askTimer) {
-        val options = listOf(0L to "Off", 86_400_000L to "24 hours", 7 * 86_400_000L to "7 days", 90 * 86_400_000L to "90 days")
+        val options = listOf(0L to tr("Off"), 86_400_000L to tr("24 hours"), 7 * 86_400_000L to tr("7 days"), 90 * 86_400_000L to tr("90 days"))
         AlertDialog(
             onDismissRequest = { askTimer = false },
-            title = { Text("Disappearing messages") },
+            title = { Text(tr("Disappearing messages")) },
             text = {
                 Column {
-                    Text("Kotha messages ee time tarvatha rendu phones nunchi delete avutayi.", color = Muted, fontSize = 13.sp)
+                    Text(tr("New messages will disappear from both phones after this time."), color = Muted, fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
                     for ((v, label) in options) {
                         Row(
@@ -569,35 +570,35 @@ fun ChatScreen(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { askTimer = false }) { Text("Close", color = Muted) } },
+            confirmButton = { TextButton(onClick = { askTimer = false }) { Text(tr("Close"), color = Muted) } },
             containerColor = Surface,
         )
     }
     if (askClear) {
         AlertDialog(
             onDismissRequest = { askClear = false },
-            title = { Text("Clear this chat?") },
-            text = { Text("Ee chat lo messages, photos annee mee phone nunchi delete avutayi.", color = Muted) },
-            confirmButton = { TextButton(onClick = { askClear = false; Chat.clearChat(peer) }) { Text("Clear", color = Accent) } },
-            dismissButton = { TextButton(onClick = { askClear = false }) { Text("Cancel", color = Muted) } },
+            title = { Text(tr("Clear this chat?")) },
+            text = { Text(tr("All messages and photos in this chat will be deleted from your phone."), color = Muted) },
+            confirmButton = { TextButton(onClick = { askClear = false; Chat.clearChat(peer) }) { Text(tr("Clear"), color = Accent) } },
+            dismissButton = { TextButton(onClick = { askClear = false }) { Text(tr("Cancel"), color = Muted) } },
             containerColor = Surface,
         )
     }
     showCode?.let { code ->
         AlertDialog(
             onDismissRequest = { showCode = null },
-            title = { Text("🔒 Encryption") },
+            title = { Text(tr("🔒 Encryption")) },
             text = {
                 Column {
-                    Text("Messages, photos, voice annee end-to-end encrypted. Mee iddari phones lo matrame open avutayi.", color = Muted, fontSize = 13.sp)
+                    Text(tr("Messages, photos and voice are end-to-end encrypted. They open only on your two phones."), color = Muted, fontSize = 13.sp)
                     Spacer(Modifier.height(12.dp))
-                    Text("Security code", color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(tr("Security code"), color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Text(code, fontSize = 16.sp, letterSpacing = 1.sp)
                     Spacer(Modifier.height(8.dp))
-                    Text("Mee friend phone lo kuda ide code unte, connection safe.", color = Muted, fontSize = 12.sp)
+                    Text(tr("If your friend sees the same code, your connection is safe."), color = Muted, fontSize = 12.sp)
                 }
             },
-            confirmButton = { TextButton(onClick = { showCode = null }) { Text("OK", color = Accent) } },
+            confirmButton = { TextButton(onClick = { showCode = null }) { Text(tr("OK"), color = Accent) } },
             containerColor = Surface,
         )
     }
@@ -605,16 +606,16 @@ fun ChatScreen(
     askDelete?.let { m ->
         AlertDialog(
             onDismissRequest = { askDelete = null },
-            title = { Text("Delete message?") },
+            title = { Text(tr("Delete message?")) },
             confirmButton = {
                 Column(horizontalAlignment = Alignment.End) {
                     if (m.fromMe && !m.deleted) {
                         TextButton(onClick = { Chat.deleteForEveryone(m); askDelete = null }) {
-                            Text("Delete for everyone", color = Accent)
+                            Text(tr("Delete for everyone"), color = Accent)
                         }
                     }
-                    TextButton(onClick = { Chat.deleteForMe(m); askDelete = null }) { Text("Delete for me", color = Accent) }
-                    TextButton(onClick = { askDelete = null }) { Text("Cancel", color = Muted) }
+                    TextButton(onClick = { Chat.deleteForMe(m); askDelete = null }) { Text(tr("Delete for me"), color = Accent) }
+                    TextButton(onClick = { askDelete = null }) { Text(tr("Cancel"), color = Muted) }
                 }
             },
             containerColor = Surface,
@@ -633,7 +634,7 @@ private fun openMedia(ctx: Context, m: Msg, openImage: (String) -> Unit) {
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             )
         } catch (_: Exception) {
-            Toast.makeText(ctx, "Video play cheyyadaniki app ledu (Flikk install cheyyandi!)", Toast.LENGTH_LONG).show()
+            Toast.makeText(ctx, tr("No app to play video (install Flikk!)"), Toast.LENGTH_LONG).show()
         }
     }
 }
@@ -652,13 +653,13 @@ private fun SelectionBar(
         Modifier.fillMaxWidth().background(Bg).statusBarsPadding().height(68.dp).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "Close") }
+        IconButton(onClick = onClose) { Icon(Icons.Filled.Close, tr("Close")) }
         Spacer(Modifier.weight(1f))
-        IconButton(onClick = onReply) { Icon(Icons.AutoMirrored.Filled.Reply, "Reply") }
-        IconButton(onClick = onStar) { Icon(if (m.starred) Icons.Filled.Star else Icons.Filled.StarBorder, "Star") }
-        if (m.text.isNotEmpty()) IconButton(onClick = onCopy) { Icon(Icons.Filled.ContentCopy, "Copy") }
-        IconButton(onClick = onForward) { Icon(Icons.AutoMirrored.Filled.Shortcut, "Forward") }
-        IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, "Delete") }
+        IconButton(onClick = onReply) { Icon(Icons.AutoMirrored.Filled.Reply, tr("Reply")) }
+        IconButton(onClick = onStar) { Icon(if (m.starred) Icons.Filled.Star else Icons.Filled.StarBorder, tr("Star")) }
+        if (m.text.isNotEmpty()) IconButton(onClick = onCopy) { Icon(Icons.Filled.ContentCopy, tr("Copy")) }
+        IconButton(onClick = onForward) { Icon(Icons.AutoMirrored.Filled.Shortcut, tr("Forward")) }
+        IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, tr("Delete")) }
     }
 }
 
@@ -750,9 +751,9 @@ private fun Bubble(
                     Spacer(Modifier.width(10.dp))
                     Text(
                         when {
-                            mine -> tr(if (m.type == "image") "View once photo" else "View once video")
+                            mine -> tr(if (m.type == "image") tr("View once photo") else tr("View once video"))
                             m.media.isEmpty() -> tr("Opened")
-                            else -> tr(if (m.type == "image") "Photo · tap to view once" else "Video · tap to view once")
+                            else -> tr(if (m.type == "image") tr("Photo · tap to view once") else tr("Video · tap to view once"))
                         },
                         color = ink, fontSize = fontSp(fontSz), fontWeight = FontWeight.SemiBold,
                     )
@@ -802,7 +803,7 @@ private fun PollView(m: Msg, poll: com.flikk.chat.data.Poll, mine: Boolean, onVo
     Column(Modifier.width(250.dp).padding(horizontal = 8.dp, vertical = 4.dp)) {
         Text("📊 " + tr("POLL"), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = sub, letterSpacing = 0.8.sp)
         Text(poll.q, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ink, modifier = Modifier.padding(vertical = 6.dp))
-        Text(tr(if (poll.multi) "Select one or more" else "Select one"), fontSize = 12.sp, color = sub)
+        Text(tr(if (poll.multi) tr("Select one or more") else tr("Select one")), fontSize = 12.sp, color = sub)
         Spacer(Modifier.height(8.dp))
         poll.options.forEachIndexed { i, o ->
             val frac = if (voters > 0) counts[i].toFloat() / voters else 0f
@@ -865,8 +866,8 @@ private fun MessageActions(
                 ActionItem(Icons.AutoMirrored.Filled.Reply, tr("Reply"), onClick = onReply)
                 ActionItem(Icons.AutoMirrored.Filled.Shortcut, tr("Forward"), onClick = onForward)
                 if (m.text.isNotEmpty() && m.type == "text") ActionItem(Icons.Filled.ContentCopy, tr("Copy"), onClick = onCopy)
-                ActionItem(if (m.starred) Icons.Filled.Star else Icons.Filled.StarBorder, tr(if (m.starred) "Unstar" else "Star"), onClick = onStar)
-                ActionItem(Icons.Filled.PushPin, tr(if (pinned) "Unpin" else "Pin"), onClick = onPin)
+                ActionItem(if (m.starred) Icons.Filled.Star else Icons.Filled.StarBorder, tr(if (m.starred) tr("Unstar") else tr("Star")), onClick = onStar)
+                ActionItem(Icons.Filled.PushPin, tr(if (pinned) tr("Unpin") else tr("Pin")), onClick = onPin)
                 if (m.fromMe) ActionItem(Icons.Filled.Info, tr("Info"), onClick = onInfo)
                 ActionItem(Icons.Filled.Delete, tr("Delete"), Danger, onDelete)
             }
@@ -904,7 +905,7 @@ private fun MediaThumb(m: Msg, isVideo: Boolean) {
     ) {
         if (m.media.isNotEmpty()) {
             AsyncImage(
-                model = File(m.media), contentDescription = if (isVideo) "Video" else "Photo",
+                model = File(m.media), contentDescription = if (isVideo) tr("Video") else tr("Photo"),
                 contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
             )
         } else {
@@ -912,7 +913,7 @@ private fun MediaThumb(m: Msg, isVideo: Boolean) {
         }
         if (isVideo) {
             Box(Modifier.size(54.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.PlayArrow, "Play video", tint = Color.White, modifier = Modifier.size(32.dp))
+                Icon(Icons.Filled.PlayArrow, tr("Play video"), tint = Color.White, modifier = Modifier.size(32.dp))
             }
             if (m.dur > 0) {
                 Text(
@@ -950,7 +951,7 @@ private fun AudioRow(m: Msg) {
                     .clickable(enabled = m.media.isNotEmpty()) { VoicePlayer.toggle(m) },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (playing) "Pause" else "Play voice message",
+                Icon(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (playing) tr("Pause") else tr("Play voice message"),
                     tint = if (mine) Accent else Color.White, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(10.dp))
@@ -982,19 +983,19 @@ private fun AttachSheet(
             Box(Modifier.align(Alignment.CenterHorizontally).size(40.dp, 5.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFFD6D4E0)))
             Spacer(Modifier.height(18.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Share", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.weight(1f))
+                Text(tr("Share"), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.weight(1f))
                 Box(Modifier.size(40.dp).clip(CircleShape).background(Surface).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Close, "Close", tint = Ink, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.Close, tr("Close"), tint = Ink, modifier = Modifier.size(20.dp))
                 }
             }
             Spacer(Modifier.height(18.dp))
             val items = listOf(
-                Triple(Icons.Filled.Image, "Gallery", Color(0xFFE7E3FF) to Color(0xFF3A20C2)) to onGallery,
-                Triple(Icons.Outlined.PhotoCamera, "Camera", Color(0xFFFCE1F0) to Color(0xFF9D174D)) to onCamera,
-                Triple(Icons.Filled.LocationOn, "Location", Color(0xFFD7F5EC) to Color(0xFF0F5E4A)) to onLocation,
-                Triple(Icons.Filled.Person, "Contact", Color(0xFFFFF1C7) to Color(0xFF854D0E)) to onContact,
-                Triple(Icons.Filled.Headphones, "Audio", Color(0xFFFFE4D6) to Color(0xFF9A3412)) to onAudio,
-                Triple(Icons.Filled.Poll, "Poll", Color(0xFFE5E7EB) to Color(0xFF374151)) to onPoll,
+                Triple(Icons.Filled.Image, tr("Gallery"), Color(0xFFE7E3FF) to Color(0xFF3A20C2)) to onGallery,
+                Triple(Icons.Outlined.PhotoCamera, tr("Camera"), Color(0xFFFCE1F0) to Color(0xFF9D174D)) to onCamera,
+                Triple(Icons.Filled.LocationOn, tr("Location"), Color(0xFFD7F5EC) to Color(0xFF0F5E4A)) to onLocation,
+                Triple(Icons.Filled.Person, tr("Contact"), Color(0xFFFFF1C7) to Color(0xFF854D0E)) to onContact,
+                Triple(Icons.Filled.Headphones, tr("Audio"), Color(0xFFFFE4D6) to Color(0xFF9A3412)) to onAudio,
+                Triple(Icons.Filled.Poll, tr("Poll"), Color(0xFFE5E7EB) to Color(0xFF374151)) to onPoll,
             )
             items.chunked(4).forEach { row ->
                 Row(Modifier.fillMaxWidth().padding(bottom = 18.dp)) {

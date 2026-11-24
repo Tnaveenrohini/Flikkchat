@@ -118,14 +118,14 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
                     Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp)) }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp)) }
                     Column {
-                        Text("New group", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
-                        Text(if (picked.isEmpty()) "Members select cheyyandi" else "${picked.size} selected", fontSize = 12.sp, color = Muted)
+                        Text(tr("New group"), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        Text(if (picked.isEmpty()) tr("Select members") else tr("{0} selected", picked.size), fontSize = 12.sp, color = Muted)
                     }
                 }
                 Box(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp)) {
-                    BoxField("Group name", name, { name = it.take(50) }, focused = name.isEmpty())
+                    BoxField(tr("Group name"), name, { name = it.take(50) }, focused = name.isEmpty())
                 }
                 if (picked.isNotEmpty()) {
                     LazyRow(
@@ -140,7 +140,7 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
                                         Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(Bg).padding(2.dp)
                                             .clip(CircleShape).background(Muted).clickable { picked = picked - c },
                                         contentAlignment = Alignment.Center,
-                                    ) { Icon(Icons.Filled.Close, "Remove ${c.name}", tint = Color.White, modifier = Modifier.size(12.dp)) }
+                                    ) { Icon(Icons.Filled.Close, tr("Remove {0}", c.name), tint = Color.White, modifier = Modifier.size(12.dp)) }
                                 }
                                 Spacer(Modifier.height(6.dp))
                                 Text(c.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -157,7 +157,7 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
                     Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }
                 }
                 list.isEmpty() -> item {
-                    Text("Flikkchat lo inka contacts levu", color = Muted, modifier = Modifier.padding(20.dp))
+                    Text(tr("None of your contacts are on Flikkchat yet"), color = Muted, modifier = Modifier.padding(20.dp))
                 }
                 else -> items(list, key = { it.uid }) { c ->
                     val on = picked.any { it.uid == c.uid }
@@ -186,12 +186,12 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
             Box(
                 Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(20.dp)
             ) {
-                PillButton("Create group", busy = busy) {
+                PillButton(tr("Create group"), busy = busy) {
                     busy = true; error = null
                     scope.launch {
                         val peer = Chat.createGroup(name, picked.map { it.uid })
                         busy = false
-                        if (peer != null) onCreated(peer) else error = "Group create avvaledu. Internet / Firestore rules check cheyyandi"
+                        if (peer != null) onCreated(peer) else error = tr("Could not create group. Check internet / Firestore rules")
                     }
                 }
             }
@@ -222,7 +222,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = 
     if (adding && g != null) {
         Scaffold(
             containerColor = Bg,
-            topBar = { Header(title = "Add members", subtitle = "${toAdd.size} selected", onBack = { adding = false; toAdd = emptySet() }) },
+            topBar = { Header(title = tr("Add members"), subtitle = tr("{0} selected", toAdd.size), onBack = { adding = false; toAdd = emptySet() }) },
             floatingActionButton = {
                 if (toAdd.isNotEmpty()) FloatingActionButton(
                     onClick = {
@@ -231,7 +231,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = 
                         scope.launch { Chat.addMembers(gid, list) }
                     },
                     containerColor = Accent, contentColor = Color.White,
-                ) { Icon(Icons.Filled.Check, "Add") }
+                ) { Icon(Icons.Filled.Check, tr("Add")) }
             },
         ) { pad ->
             val list = contacts?.filter { it.uid !in g.members }
@@ -240,7 +240,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = 
                     list == null -> item {
                         Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }
                     }
-                    list.isEmpty() -> item { Text("Add cheyyadaniki inka contacts levu", color = Muted, modifier = Modifier.padding(16.dp)) }
+                    list.isEmpty() -> item { Text(tr("No more contacts to add"), color = Muted, modifier = Modifier.padding(16.dp)) }
                     else -> items(list, key = { it.uid }) { c ->
                         PickRow(c.name, c.phone, c.uid in toAdd) {
                             toAdd = if (c.uid in toAdd) toAdd - c.uid else toAdd + c.uid
@@ -265,18 +265,18 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = 
         item {
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 12.dp, top = 14.dp)) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", tint = Ink, modifier = Modifier.size(20.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp))
                 }
             }
             Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Avatar(g.name, 104.dp, rounded = 36.dp)
                 Spacer(Modifier.height(14.dp))
                 Text(g.name, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, color = Ink)
-                Text("Group · ${g.members.size} members", color = Muted, fontSize = 14.sp)
+                Text(tr("Group · {0} members", g.members.size), color = Muted, fontSize = 14.sp)
             }
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                InfoTile(Icons.AutoMirrored.Filled.Chat, "Message", Modifier.weight(1f), onClick = onBack)
-                if (iAmAdmin) InfoTile(Icons.Filled.PersonAdd, "Add", Modifier.weight(1f)) { adding = true }
+                InfoTile(Icons.AutoMirrored.Filled.Chat, tr("Message"), Modifier.weight(1f), onClick = onBack)
+                if (iAmAdmin) InfoTile(Icons.Filled.PersonAdd, tr("Add"), Modifier.weight(1f)) { adding = true }
                 if (iAmMember) InfoTile(Icons.Filled.Settings, tr("Settings"), Modifier.weight(1f), onClick = openSettings)
                 if (iAmMember) InfoTile(Icons.AutoMirrored.Filled.ExitToApp, tr("Exit"), Modifier.weight(1f), tint = Danger) { askLeave = true }
             }
@@ -291,7 +291,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = 
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         media.forEach { m ->
                             AsyncImage(
-                                model = File(m.media), contentDescription = "Photo", contentScale = ContentScale.Crop,
+                                model = File(m.media), contentDescription = tr("Photo"), contentScale = ContentScale.Crop,
                                 modifier = Modifier.weight(1f).height(70.dp).clip(RoundedCornerShape(12.dp)),
                             )
                         }
@@ -300,10 +300,10 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = 
                 }
             }
             Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Bg).padding(vertical = 6.dp)) {
-                Text("${g.members.size} members", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted,
+                Text(tr("{0} members", g.members.size), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Muted,
                     modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
                 g.members.sortedBy { if (it == me) "" else Chat.nameOf(it).lowercase() }.forEach { uid ->
-                    val n = if (uid == me) "You" else Chat.nameOf(uid)
+                    val n = if (uid == me) tr("You") else Chat.nameOf(uid)
                     Row(
                         Modifier.fillMaxWidth()
                             .clickable(enabled = iAmAdmin && uid != me) { removeWho = uid }
@@ -317,7 +317,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = 
                             Chat.db.peer(uid)?.phone?.takeIf { it.isNotEmpty() && uid != me }?.let { Text(it, color = Muted, fontSize = 12.sp) }
                         }
                         if (uid in g.admins) {
-                            Text("Admin", color = AccentDeep, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            Text(tr("Admin"), color = AccentDeep, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AccentSoft).padding(horizontal = 8.dp, vertical = 4.dp))
                         }
                     }
@@ -331,22 +331,22 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = 
     removeWho?.let { uid ->
         AlertDialog(
             onDismissRequest = { removeWho = null },
-            title = { Text("Remove ${Chat.nameOf(uid)}?") },
+            title = { Text(tr("Remove {0}?", Chat.nameOf(uid))) },
             confirmButton = {
-                TextButton(onClick = { removeWho = null; scope.launch { Chat.removeMember(gid, uid) } }) { Text("Remove", color = Accent) }
+                TextButton(onClick = { removeWho = null; scope.launch { Chat.removeMember(gid, uid) } }) { Text(tr("Remove"), color = Accent) }
             },
-            dismissButton = { TextButton(onClick = { removeWho = null }) { Text("Cancel", color = Muted) } },
+            dismissButton = { TextButton(onClick = { removeWho = null }) { Text(tr("Cancel"), color = Muted) } },
             containerColor = Surface,
         )
     }
     if (askLeave) {
         AlertDialog(
             onDismissRequest = { askLeave = false },
-            title = { Text("Exit \"${g?.name}\"?") },
+            title = { Text(tr("Exit \"{0}\"?", g?.name ?: "")) },
             confirmButton = {
-                TextButton(onClick = { askLeave = false; scope.launch { Chat.leaveGroup(gid) } }) { Text("Exit", color = Accent) }
+                TextButton(onClick = { askLeave = false; scope.launch { Chat.leaveGroup(gid) } }) { Text(tr("Exit"), color = Accent) }
             },
-            dismissButton = { TextButton(onClick = { askLeave = false }) { Text("Cancel", color = Muted) } },
+            dismissButton = { TextButton(onClick = { askLeave = false }) { Text(tr("Cancel"), color = Muted) } },
             containerColor = Surface,
         )
     }
@@ -497,7 +497,7 @@ fun ImageViewer(path: String, onBack: () -> Unit) {
                 .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
         )
         IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(4.dp)) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = Color.White)
         }
     }
 }
