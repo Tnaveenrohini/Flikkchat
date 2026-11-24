@@ -127,13 +127,21 @@ object Chat {
         fun onFailed(message: String)
     }
 
+    /** Error ki mana message + Firebase original message (problem kanukkodaniki) */
     private fun otpError(e: Exception): String {
+        val raw = e.message?.trim().orEmpty()
+        val friendly = otpFriendly(e)
+        return if (raw.isEmpty() || friendly.startsWith("OTP error")) friendly else "$friendly\n\n($raw)"
+    }
+
+    private fun otpFriendly(e: Exception): String {
         val m = (e.message ?: "") + " " + e.javaClass.simpleName
         return when {
             m.contains("BILLING_NOT_ENABLED", true) -> "SMS OTP needs the Firebase Blaze plan"
             m.contains("not authorized", true) || m.contains("app-not-authorized", true) || m.contains("Play Integrity", true) ->
                 "Add the app's SHA-1 and SHA-256 in Firebase project settings"
-            m.contains("OPERATION_NOT_ALLOWED", true) || m.contains("disabled", true) -> "Enable Authentication → Phone in Firebase"
+            m.contains("region", true) -> "SMS to India is blocked. In Firebase: Authentication → Settings → SMS region policy → allow India"
+            m.contains("OPERATION_NOT_ALLOWED", true) || m.contains("sign-in provider is disabled", true) -> "Enable Authentication → Phone in Firebase"
             e is FirebaseTooManyRequestsException || m.contains("quota", true) || m.contains("TOO_MANY", true) -> "Too many tries. Please try again later."
             e is FirebaseAuthInvalidCredentialsException && m.contains("phone", true) -> "Enter a valid phone number"
             e is FirebaseAuthInvalidCredentialsException -> "Wrong code. Check the SMS and try again."

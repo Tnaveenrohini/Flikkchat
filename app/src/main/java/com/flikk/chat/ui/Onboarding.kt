@@ -339,7 +339,11 @@ fun OtpScreen(phone: String, onBack: () -> Unit, onVerified: () -> Unit) {
             letterSpacing = (-0.8).sp, color = Ink)
         Spacer(Modifier.height(10.dp))
         Text(
-            if (sending) tr("Sending SMS to {0}…", phone) else tr("We sent an SMS with a code to {0}", phone),
+            when {
+                sending -> tr("Sending SMS to {0}…", phone)
+                verId != null -> tr("We sent an SMS with a code to {0}", phone)
+                else -> tr("Could not send the SMS to {0}", phone)
+            },
             fontSize = 15.sp, lineHeight = 22.sp, color = Muted,
         )
         Spacer(Modifier.height(30.dp))
@@ -379,7 +383,10 @@ fun OtpScreen(phone: String, onBack: () -> Unit, onVerified: () -> Unit) {
         Spacer(Modifier.height(14.dp))
         error?.let { Text(it, color = Danger, fontSize = 14.sp, lineHeight = 20.sp) }
         Spacer(Modifier.height(10.dp))
-        if (!sending) {
+        if (!sending && verId == null) {
+            Text(tr("Try again"), color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { code = ""; send(false) }.padding(vertical = 6.dp))
+        } else if (!sending) {
             if (wait > 0) Text(tr("Resend code in {0}s", wait), color = Muted, fontSize = 14.sp)
             else Text(tr("Resend code"), color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { code = ""; send(true) }.padding(vertical = 6.dp))
