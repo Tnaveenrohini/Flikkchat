@@ -277,7 +277,6 @@ object Chat {
 
     // ---------- Sync engine ----------
 
-    @Synchronized
     /** Listeners malli start (OTP verify ayyaka kotha token tho) */
     @Synchronized
     fun restart() {
@@ -287,6 +286,7 @@ object Chat {
         start()
     }
 
+    @Synchronized
     fun start() {
         if (started || !ready) return
         if (!phoneVerified) return
