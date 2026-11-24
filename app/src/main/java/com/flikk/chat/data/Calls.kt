@@ -222,6 +222,13 @@ object Calls {
 
     fun decline() = end("Declined", remoteState = "declined")
 
+    /** Decline chesi chinna message pampu */
+    fun declineWithMessage(text: String) {
+        val peer = _state.value?.peer ?: return
+        decline()
+        Chat.send(peer, text)
+    }
+
     fun hangup() = end("Call ended", remoteState = "ended")
 
     // ---------------- Controls ----------------

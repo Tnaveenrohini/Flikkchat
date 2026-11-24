@@ -1,6 +1,14 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Poll
+import androidx.compose.material.icons.filled.PushPin
+import com.flikk.chat.data.jsonMap
+import com.flikk.chat.data.pollOf
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.filled.Headphones
@@ -157,6 +165,12 @@ fun ChatScreen(
     openForward: (String) -> Unit,
     openImage: (String) -> Unit,
     openContactInfo: (String) -> Unit = {},
+    openPoll: (String) -> Unit = {},
+    openSendPreview: (String, android.net.Uri, Boolean) -> Unit = { _, _, _ -> },
+    openLocation: (String) -> Unit = {},
+    openMediaViewer: (String, String) -> Unit = { _, _ -> },
+    openMessageInfo: (String) -> Unit = {},
+    openMediaLinks: (String) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -202,6 +216,12 @@ fun ChatScreen(
     var askDelete by remember { mutableStateOf<Msg?>(null) }
     var menu by remember { mutableStateOf(false) }
     val caller = rememberCaller()
+    var actionsFor by remember { mutableStateOf<Msg?>(null) }
+    val pinnedId = remember(version) { Chat.pinned(peer) }
+    val pinnedMsg = remember(version, pinnedId) { pinnedId?.let { Chat.db.msg(it) }?.takeIf { !it.deleted } }
+    val wall = remember(version) { Chat.wallpaper }
+    val bubbleColor = remember(version) { Chat.bubbleColor }.let { if (it == 0L) Accent else Color(it) }
+    val fontSz = remember(version) { Chat.fontSize }
     var askTimer by remember { mutableStateOf(false) }
     var askClear by remember { mutableStateOf(false) }
     var showCode by remember { mutableStateOf<String?>(null) }
@@ -242,14 +262,7 @@ fun ChatScreen(
         val f = shotFile
         shotFile = null
         if (ok && f != null && f.length() > 0) {
-            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", f)
-            val reply = replyTo
-            replyTo = null
-            scope.launch {
-                val err = Chat.sendMedia(peer, uri, false, "", reply)
-                f.delete()
-                if (err != null) Toast.makeText(ctx, err, Toast.LENGTH_LONG).show()
-            }
+            openSendPreview(peer, FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", f), false)
         } else f?.delete()
     }
     val camPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
@@ -257,7 +270,7 @@ fun ChatScreen(
             val f = File(com.flikk.chat.data.Media.dir(ctx), "shot_${UUID.randomUUID()}.jpg")
             shotFile = f
             shooter.launch(FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", f))
-        } else Toast.makeText(ctx, "Camera permission kavali", Toast.LENGTH_SHORT).show()
+        } else Toast.makeText(ctx, tr("Camera permission needed"), Toast.LENGTH_SHORT).show()
     }
     fun takePhoto() = camPermission.launch(Manifest.permission.CAMERA)
 
@@ -265,13 +278,7 @@ fun ChatScreen(
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             val isVideo = ctx.contentResolver.getType(uri)?.startsWith("video") == true
-            val caption = text
-            val reply = replyTo
-            text = ""; replyTo = null
-            scope.launch {
-                val err = Chat.sendMedia(peer, uri, isVideo, caption, reply)
-                if (err != null) Toast.makeText(ctx, err, Toast.LENGTH_LONG).show()
-            }
+            openSendPreview(peer, uri, isVideo)
         }
     }
 
@@ -300,7 +307,7 @@ fun ChatScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().background(ChatBg).imePadding()) {
+    Column(Modifier.fillMaxSize().background(if (wall == 0L) ChatBg else Color(wall)).imePadding()) {
         val sel = selected
         if (sel != null) {
             SelectionBar(
@@ -332,7 +339,8 @@ fun ChatScreen(
                         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menu") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             if (group) DropdownMenuItem(text = { Text("Group info") }, onClick = { menu = false; openGroupInfo(gidOf(peer)) })
-                            DropdownMenuItem(text = { Text("Disappearing messages") }, onClick = { menu = false; askTimer = true })
+                            DropdownMenuItem(text = { Text(tr("Media, links & docs")) }, onClick = { menu = false; openMediaLinks(peer) })
+                            DropdownMenuItem(text = { Text(tr("Disappearing messages")) }, onClick = { menu = false; askTimer = true })
                             if (!group) DropdownMenuItem(text = { Text("Encryption 🔒") }, onClick = {
                                 menu = false
                                 scope.launch {
@@ -349,7 +357,17 @@ fun ChatScreen(
                 },
             )
         }
-        HorizontalDivider(color = Line)
+        if (pinnedMsg != null) {
+            Row(
+                Modifier.fillMaxWidth().background(BubbleThem).padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.PushPin, null, tint = Accent, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(preview(pinnedMsg), fontSize = 13.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                IconButton(onClick = { Chat.setPinned(peer, null) }) { Icon(Icons.Filled.Close, tr("Unpin"), tint = Muted, modifier = Modifier.size(18.dp)) }
+            }
+        }
 
         val reversed = remember(msgs) { msgs.asReversed() }
         LazyColumn(
@@ -364,14 +382,19 @@ fun ChatScreen(
                     if (older == null || dayLabel(older.ts) != dayLabel(m.ts)) DayChip(dayLabel(m.ts))
                     if (m.type == "sys") SysChip(m.text)
                     else Bubble(
-                        m = m,
+                        m = m, bubbleColor = bubbleColor, fontSz = fontSz,
                         showSender = group && !m.fromMe && (older == null || older.sender != m.sender || older.type == "sys"),
                         selected = selected?.id == m.id,
-                        onLongPress = { if (!m.deleted) selected = m },
+                        onLongPress = { if (!m.deleted) actionsFor = m },
                         onClick = {
-                            if (selected != null) { selected = if (selected?.id == m.id) null else m }
-                            else openMedia(ctx, m, openImage)
+                            when {
+                                m.viewOnce && !m.fromMe && m.media.isNotEmpty() -> openViewOnce(ctx, m, openImage)
+                                m.type == "image" || m.type == "video" -> if (m.media.isNotEmpty() && !m.deleted && !m.viewOnce) openMediaViewer(peer, m.id)
+                                else -> {}
+                            }
                         },
+                        onVote = { idx -> Chat.vote(m, idx) },
+                        onReactionsClick = { actionsFor = m },
                     )
                 }
             }
@@ -399,6 +422,12 @@ fun ChatScreen(
                 color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp,
                 modifier = Modifier.fillMaxWidth().clickable { Chat.setBlocked(peer, false) }
                     .navigationBarsPadding().padding(18.dp),
+            )
+        } else if (groupInfo?.adminsOnlySend == true && Chat.me !in groupInfo!!.admins && amMember) {
+            Text(
+                tr("Only admins can send messages"),
+                color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp,
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(18.dp),
             )
         } else if (!amMember) {
             Text(
@@ -483,16 +512,34 @@ fun ChatScreen(
             onClose = { showAttach = false },
             onGallery = { showAttach = false; picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
             onCamera = { showAttach = false; takePhoto() },
-            onLocation = {
-                showAttach = false
-                locPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-            },
+            onLocation = { showAttach = false; openLocation(peer) },
+            onPoll = { showAttach = false; openPoll(peer) },
             onContact = {
                 showAttach = false
                 if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) contactPicker.launch(null)
                 else contactsPermission.launch(Manifest.permission.READ_CONTACTS)
             },
             onAudio = { showAttach = false; audioPicker.launch("audio/*") },
+        )
+    }
+    actionsFor?.let { m ->
+        MessageActions(
+            m = m, bubbleColor = bubbleColor,
+            onClose = { actionsFor = null },
+            onReact = { e -> Chat.react(m, e); actionsFor = null },
+            onReply = { replyTo = m; actionsFor = null },
+            onForward = { actionsFor = null; openForward(m.id) },
+            onCopy = {
+                val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("message", m.text))
+                Toast.makeText(ctx, tr("Copied"), Toast.LENGTH_SHORT).show()
+                actionsFor = null
+            },
+            onStar = { Chat.star(m); actionsFor = null },
+            pinned = pinnedId == m.id,
+            onPin = { Chat.setPinned(peer, if (pinnedId == m.id) null else m.id); actionsFor = null },
+            onInfo = { actionsFor = null; openMessageInfo(m.id) },
+            onDelete = { askDelete = m; actionsFor = null },
         )
     }
     }
@@ -637,7 +684,10 @@ private fun SysChip(text: String) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun Bubble(m: Msg, showSender: Boolean, selected: Boolean, onLongPress: () -> Unit, onClick: () -> Unit) {
+private fun Bubble(
+    m: Msg, showSender: Boolean, selected: Boolean, onLongPress: () -> Unit, onClick: () -> Unit,
+    bubbleColor: Color = Accent, fontSz: Int = 1, onVote: (Int) -> Unit = {}, onReactionsClick: () -> Unit = {},
+) {
     val mine = m.fromMe
     val shape = RoundedCornerShape(
         topStart = 20.dp, topEnd = 20.dp,
@@ -646,19 +696,20 @@ private fun Bubble(m: Msg, showSender: Boolean, selected: Boolean, onLongPress: 
     )
     val ink = if (mine) Color.White else Ink
     val sub = if (mine) OnAccentMuted else Muted
-    Box(
+    val reactions = remember(m.reactions) { jsonMap(m.reactions) }
+    Column(
         Modifier.fillMaxWidth()
             .background(if (selected) Accent.copy(alpha = 0.12f) else Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
             .padding(vertical = 3.dp),
-        contentAlignment = if (mine) Alignment.CenterEnd else Alignment.CenterStart,
+        horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
     ) {
         Column(
             Modifier
                 .widthIn(max = 280.dp)
                 .then(if (mine) Modifier else Modifier.shadow(1.dp, shape))
                 .clip(shape)
-                .background(if (mine) Accent else BubbleThem)
+                .background(if (mine) bubbleColor else BubbleThem)
+                .combinedClickable(onClick = onClick, onLongClick = onLongPress)
                 .padding(6.dp),
         ) {
             if (showSender) {
@@ -667,7 +718,7 @@ private fun Bubble(m: Msg, showSender: Boolean, selected: Boolean, onLongPress: 
                     modifier = Modifier.padding(start = 8.dp, top = 2.dp, end = 8.dp))
             }
             if (m.fwd && !m.deleted) {
-                Text("↪ Forwarded", color = sub, fontSize = 12.sp, fontStyle = FontStyle.Italic,
+                Text("↪ " + tr("Forwarded"), color = sub, fontSize = 12.sp, fontStyle = FontStyle.Italic,
                     modifier = Modifier.padding(start = 8.dp, top = 2.dp, end = 8.dp))
             }
             if (m.replyId.isNotEmpty() && !m.deleted) {
@@ -678,23 +729,41 @@ private fun Bubble(m: Msg, showSender: Boolean, selected: Boolean, onLongPress: 
                 ) {
                     if (!mine) Box(Modifier.width(4.dp).fillMaxHeight().background(Accent))
                     Column(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-                        Text(m.replyName.ifEmpty { "Message" }, color = if (mine) Color.White else Accent, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                        Text(m.replyName.ifEmpty { tr("Message") }, color = if (mine) Color.White else Accent, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                         Text(m.replyText, color = if (mine) OnAccentMuted else Muted, fontSize = 12.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
 
+            val poll = if (!m.deleted) pollOf(m) else null
             when {
                 m.deleted -> Text(
-                    "🚫 This message was deleted", color = sub, fontStyle = FontStyle.Italic, fontSize = 14.sp,
+                    "🚫 " + tr("This message was deleted"), color = sub, fontStyle = FontStyle.Italic, fontSize = 14.sp,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 )
+                m.viewOnce && (m.type == "image" || m.type == "video") -> Row(
+                    Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(30.dp).clip(CircleShape).border(2.dp, if (mine) Color.White else Accent, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("1", color = if (mine) Color.White else Accent, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        when {
+                            mine -> tr(if (m.type == "image") "View once photo" else "View once video")
+                            m.media.isEmpty() -> tr("Opened")
+                            else -> tr(if (m.type == "image") "Photo · tap to view once" else "Video · tap to view once")
+                        },
+                        color = ink, fontSize = fontSp(fontSz), fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                poll != null -> PollView(m, poll, mine, onVote)
                 m.type == "image" -> MediaThumb(m, isVideo = false)
                 m.type == "video" -> MediaThumb(m, isVideo = true)
                 m.type == "audio" -> AudioRow(m)
             }
-            if (!m.deleted && m.text.isNotEmpty()) {
-                Text(m.text, fontSize = 15.sp, lineHeight = 21.sp, color = ink,
+            if (!m.deleted && m.text.isNotEmpty() && m.type != "poll" && !(m.viewOnce && m.media.isEmpty() && !mine)) {
+                Text(m.text, fontSize = fontSp(fontSz), lineHeight = (fontSp(fontSz).value + 6).sp, color = ink,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             }
             Row(
@@ -706,7 +775,125 @@ private fun Bubble(m: Msg, showSender: Boolean, selected: Boolean, onLongPress: 
                 if (mine && !m.deleted) { Spacer(Modifier.width(4.dp)); Ticks(m.status, 16.dp, onAccent = true) }
             }
         }
+        if (reactions.isNotEmpty()) {
+            val counts = reactions.values.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
+            Row(
+                Modifier.padding(start = 10.dp, end = 10.dp).offset(y = (-4).dp).shadow(1.dp, RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(14.dp)).background(BubbleThem).clickable(onClick = onReactionsClick)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(counts.joinToString(" ") { it.key }, fontSize = 13.sp)
+                if (reactions.size > 1) { Spacer(Modifier.width(4.dp)); Text("${reactions.size}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DayInk) }
+            }
+        }
     }
+}
+
+@Composable
+private fun PollView(m: Msg, poll: com.flikk.chat.data.Poll, mine: Boolean, onVote: (Int) -> Unit) {
+    val votes = remember(m.votes) { jsonMap(m.votes) }
+    val counts = IntArray(poll.options.size)
+    votes.values.forEach { v -> v.split(",").mapNotNull { it.toIntOrNull() }.forEach { if (it in counts.indices) counts[it]++ } }
+    val myVotes = votes[Chat.me]?.split(",")?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
+    val voters = votes.size
+    val ink = if (mine) Color.White else Ink
+    val sub = if (mine) OnAccentMuted else Muted
+    Column(Modifier.width(250.dp).padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Text("📊 " + tr("POLL"), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = sub, letterSpacing = 0.8.sp)
+        Text(poll.q, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ink, modifier = Modifier.padding(vertical = 6.dp))
+        Text(tr(if (poll.multi) "Select one or more" else "Select one"), fontSize = 12.sp, color = sub)
+        Spacer(Modifier.height(8.dp))
+        poll.options.forEachIndexed { i, o ->
+            val frac = if (voters > 0) counts[i].toFloat() / voters else 0f
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onVote(i) }.padding(vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(20.dp).clip(CircleShape)
+                            .then(if (i in myVotes) Modifier.background(if (mine) Color.White else Accent) else Modifier.border(2.dp, sub, CircleShape)),
+                        contentAlignment = Alignment.Center,
+                    ) { if (i in myVotes) Icon(Icons.Filled.Done, null, tint = if (mine) Accent else Color.White, modifier = Modifier.size(14.dp)) }
+                    Spacer(Modifier.width(10.dp))
+                    Text(o, fontSize = 15.sp, color = ink, modifier = Modifier.weight(1f))
+                    Text("${counts[i]}", fontSize = 13.sp, color = sub, fontWeight = FontWeight.Bold)
+                }
+                Box(Modifier.padding(start = 30.dp, top = 6.dp).fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp))
+                    .background(if (mine) Color.White.copy(alpha = 0.25f) else Surface)) {
+                    Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(if (mine) Color.White else Accent))
+                }
+            }
+        }
+        Text(tr("{0} votes", voters), fontSize = 12.sp, color = sub, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+private val QuickReactions = listOf("👍", "❤️", "😂", "😮", "🙏", "🔥")
+
+@Composable
+private fun MessageActions(
+    m: Msg, bubbleColor: Color, pinned: Boolean,
+    onClose: () -> Unit, onReact: (String) -> Unit, onReply: () -> Unit, onForward: () -> Unit,
+    onCopy: () -> Unit, onStar: () -> Unit, onPin: () -> Unit, onInfo: () -> Unit, onDelete: () -> Unit,
+) {
+    BackHandler(onBack = onClose)
+    val mine = Chat.me
+    val myReaction = jsonMap(m.reactions)[mine]
+    Box(Modifier.fillMaxSize().background(Color(0x8C14161F)).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.padding(24.dp).widthIn(max = 340.dp).pointerInput(Unit) { detectTapGestures { } },
+            horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start,
+        ) {
+            Row(
+                Modifier.clip(RoundedCornerShape(28.dp)).background(BubbleThem).padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                QuickReactions.forEach { e ->
+                    Box(
+                        Modifier.size(42.dp).clip(CircleShape).background(if (myReaction == e) AccentSoft else Color.Transparent).clickable { onReact(e) },
+                        contentAlignment = Alignment.Center,
+                    ) { Text(e, fontSize = 22.sp) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                preview(m), color = if (m.fromMe) Color.White else Ink, fontSize = 15.sp, maxLines = 4, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(if (m.fromMe) bubbleColor else BubbleThem)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+            Spacer(Modifier.height(10.dp))
+            Column(Modifier.width(230.dp).clip(RoundedCornerShape(20.dp)).background(BubbleThem).padding(vertical = 6.dp)) {
+                ActionItem(Icons.AutoMirrored.Filled.Reply, tr("Reply"), onClick = onReply)
+                ActionItem(Icons.AutoMirrored.Filled.Shortcut, tr("Forward"), onClick = onForward)
+                if (m.text.isNotEmpty() && m.type == "text") ActionItem(Icons.Filled.ContentCopy, tr("Copy"), onClick = onCopy)
+                ActionItem(if (m.starred) Icons.Filled.Star else Icons.Filled.StarBorder, tr(if (m.starred) "Unstar" else "Star"), onClick = onStar)
+                ActionItem(Icons.Filled.PushPin, tr(if (pinned) "Unpin" else "Pin"), onClick = onPin)
+                if (m.fromMe) ActionItem(Icons.Filled.Info, tr("Info"), onClick = onInfo)
+                ActionItem(Icons.Filled.Delete, tr("Delete"), Danger, onDelete)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, color: Color = Ink, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = color, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Icon(icon, null, tint = if (color == Ink) Muted else color, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** View once: copy teesi, original delete, copy chupistam */
+private fun openViewOnce(ctx: Context, m: Msg, openImage: (String) -> Unit) {
+    val src = File(m.media)
+    if (!src.exists()) return
+    val tmp = File(com.flikk.chat.data.Media.dir(ctx), "vo_" + src.name)
+    try { src.copyTo(tmp, overwrite = true) } catch (_: Exception) { return }
+    Chat.consumeViewOnce(m)
+    if (m.type == "image") openImage(tmp.absolutePath)
+    else try {
+        val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", tmp)
+        ctx.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, m.mime.ifEmpty { "video/*" }).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+    } catch (_: Exception) {}
 }
 
 @Composable
@@ -782,7 +969,7 @@ private fun AudioRow(m: Msg) {
 @Composable
 private fun AttachSheet(
     onClose: () -> Unit, onGallery: () -> Unit, onCamera: () -> Unit,
-    onLocation: () -> Unit, onContact: () -> Unit, onAudio: () -> Unit,
+    onLocation: () -> Unit, onContact: () -> Unit, onAudio: () -> Unit, onPoll: () -> Unit,
 ) {
     BackHandler(onBack = onClose)
     Box(Modifier.fillMaxSize().background(Color(0x7314161F)).clickable(onClick = onClose)) {
@@ -807,6 +994,7 @@ private fun AttachSheet(
                 Triple(Icons.Filled.LocationOn, "Location", Color(0xFFD7F5EC) to Color(0xFF0F5E4A)) to onLocation,
                 Triple(Icons.Filled.Person, "Contact", Color(0xFFFFF1C7) to Color(0xFF854D0E)) to onContact,
                 Triple(Icons.Filled.Headphones, "Audio", Color(0xFFFFE4D6) to Color(0xFF9A3412)) to onAudio,
+                Triple(Icons.Filled.Poll, "Poll", Color(0xFFE5E7EB) to Color(0xFF374151)) to onPoll,
             )
             items.chunked(4).forEach { row ->
                 Row(Modifier.fillMaxWidth().padding(bottom = 18.dp)) {
@@ -819,7 +1007,7 @@ private fun AttachSheet(
                                 Icon(t.first, null, tint = t.third.second, modifier = Modifier.size(26.dp))
                             }
                             Spacer(Modifier.height(8.dp))
-                            Text(t.second, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
+                            Text(tr(t.second), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
                         }
                     }
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }

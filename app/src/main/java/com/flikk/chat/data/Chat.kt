@@ -75,6 +75,7 @@ data class Contact(val uid: String, val name: String, val phone: String)
 object Chat {
     const val ONLINE_WINDOW_MS = 70_000L
     const val TYPING_WINDOW_MS = 5_000L
+    const val PIN_REQUIRED = "PIN_REQUIRED"
     private const val CHUNK = 700_000
     private const val CHANNEL = "messages"
 
@@ -141,7 +142,7 @@ object Chat {
     // ---------- Login ----------
 
     /** null = success, lekapothe error message */
-    suspend fun register(name: String, rawPhone: String): String? = withContext(Dispatchers.IO) {
+    suspend fun register(name: String, rawPhone: String, pin: String? = null): String? = withContext(Dispatchers.IO) {
         val phone = normalize(rawPhone) ?: return@withContext "Phone number correct ga ivvandi"
         if (name.isBlank()) return@withContext "Mee peru ivvandi"
         try {
@@ -155,7 +156,8 @@ object Chat {
                     "Firebase lo Authentication → Anonymous enable cheyyandi"
                 else "Login error: $m"
             }
-            val uid = user?.uid ?: return@withContext "Login fail ayyindi, malli try cheyyandi"
+            val uid = user?.uid ?: return@withContext "Login failed, please try again"
+            if (!pinOkFor(phone, uid, pin)) return@withContext if (pin == null) PIN_REQUIRED else "Wrong PIN"
             // Firestore database lekapothe write eppatiki complete avvadu — timeout pettam
             val ok = withTimeoutOrNull(20_000) {
                 fs.collection("users").document(uid).set(
@@ -399,6 +401,140 @@ object Chat {
         for (p in db.clearMedia(peer)) File(p).delete()
     }
 
+    // ---------- Reactions, polls, pin, view once ----------
+
+    private fun mapJson(m: Map<String, String>) = org.json.JSONObject(m as Map<*, *>).toString()
+
+    /** Emoji reaction (same emoji malli nokkithe teesestundi) */
+    fun react(m: Msg, emoji: String) {
+        val uid = me ?: return
+        val cur = jsonMap(m.reactions).toMutableMap()
+        val v = if (cur[uid] == emoji) "" else emoji
+        if (v.isEmpty()) cur.remove(uid) else cur[uid] = v
+        db.setField(m.id, "reactions", mapJson(cur))
+        sendControl(m.peer, mapOf("type" to "react", "target" to m.id, "v" to v))
+    }
+
+    fun sendPoll(peer: String, question: String, options: List<String>, multi: Boolean) {
+        val j = org.json.JSONObject().put("q", question.trim()).put("o", org.json.JSONArray(options.map { it.trim() }.filter { it.isNotEmpty() })).put("m", multi)
+        send(peer, j.toString(), "poll")
+    }
+
+    /** Poll vote: indexes "0,2" */
+    fun vote(m: Msg, index: Int) {
+        val uid = me ?: return
+        val poll = pollOf(m) ?: return
+        val cur = jsonMap(m.votes).toMutableMap()
+        val mine = cur[uid]?.split(",")?.filter { it.isNotEmpty() }?.map { it.toInt() }?.toMutableSet() ?: mutableSetOf()
+        if (index in mine) mine -= index else { if (!poll.multi) mine.clear(); mine += index }
+        val v = mine.sorted().joinToString(",")
+        if (v.isEmpty()) cur.remove(uid) else cur[uid] = v
+        db.setField(m.id, "votes", mapJson(cur))
+        sendControl(m.peer, mapOf("type" to "vote", "target" to m.id, "v" to v))
+    }
+
+    fun pinned(peer: String): String? = prefs.getString("pin_$peer", null)
+    fun setPinned(peer: String, msgId: String?) {
+        prefs.edit().apply { if (msgId == null) remove("pin_$peer") else putString("pin_$peer", msgId) }.apply()
+        db.bump()
+    }
+
+    /** View once: okkasari chusaka media delete */
+    fun consumeViewOnce(m: Msg) {
+        if (m.fromMe || !m.viewOnce) return
+        if (m.media.isNotEmpty()) File(m.media).delete()
+        db.setField(m.id, "media", "")
+    }
+
+    // ---------- Archive & locked chats ----------
+
+    private fun setOf(key: String): Set<String> = prefs.getStringSet(key, emptySet()) ?: emptySet()
+    private fun toggleIn(key: String, peer: String, on: Boolean) {
+        val s = setOf(key).toMutableSet()
+        if (on) s += peer else s -= peer
+        prefs.edit().putStringSet(key, s).apply()
+        db.bump()
+    }
+    fun isArchived(peer: String) = peer in setOf("archived")
+    fun setArchived(peer: String, on: Boolean) = toggleIn("archived", peer, on)
+    fun isLocked(peer: String) = peer in setOf("locked")
+    fun setLocked(peer: String, on: Boolean) = toggleIn("locked", peer, on)
+
+    // ---------- Group settings ----------
+
+    suspend fun setGroupFlags(gid: String, flags: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            fs.collection("groups").document(gid).update("flags", flags).await()
+            refreshGroup(gid)
+            sysMessage(gid, "$myName changed group settings")
+            true
+        } catch (_: Exception) { false }
+    }
+
+    suspend fun renameGroup(gid: String, name: String): Boolean = withContext(Dispatchers.IO) {
+        if (name.isBlank()) return@withContext false
+        try {
+            fs.collection("groups").document(gid).update("name", name.trim()).await()
+            refreshGroup(gid)
+            sysMessage(gid, "$myName changed the group name to \"${name.trim()}\"")
+            true
+        } catch (_: Exception) { false }
+    }
+
+    // ---------- Chat look (bubble, wallpaper, font) ----------
+
+    var bubbleColor: Long
+        get() = prefs.getLong("bubble", 0L)
+        set(v) { prefs.edit().putLong("bubble", v).apply(); db.bump() }
+    var wallpaper: Long
+        get() = prefs.getLong("wall", 0L)
+        set(v) { prefs.edit().putLong("wall", v).apply(); db.bump() }
+    /** 0 small, 1 medium, 2 large */
+    var fontSize: Int
+        get() = prefs.getInt("font", 1)
+        set(v) { prefs.edit().putInt("font", v).apply(); db.bump() }
+
+    /** App language: en, te, ta, hi */
+    var language: String
+        get() = prefs.getString("lang", "en") ?: "en"
+        set(v) { prefs.edit().putString("lang", v).apply() }
+
+    // ---------- Backup info ----------
+
+    var lastBackupAt: Long
+        get() = prefs.getLong("backup_at", 0L)
+        set(v) { prefs.edit().putLong("backup_at", v).apply() }
+    var lastBackupSize: Long
+        get() = prefs.getLong("backup_size", 0L)
+        set(v) { prefs.edit().putLong("backup_size", v).apply() }
+
+    // ---------- Two-step PIN ----------
+
+    private fun pinHash(phone: String, pin: String): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest("flikkchat-pin:$phone:$pin".toByteArray())
+            .joinToString("") { "%02x".format(it) }
+
+    val hasPin get() = prefs.getBoolean("has_pin", false)
+
+    suspend fun setPin(pin: String?): Boolean = withContext(Dispatchers.IO) {
+        val uid = me ?: return@withContext false
+        try {
+            val v: Any = if (pin == null) FieldValue.delete() else pinHash(myPhone, pin)
+            fs.collection("users").document(uid).update("pin", v).await()
+            prefs.edit().putBoolean("has_pin", pin != null).apply()
+            true
+        } catch (_: Exception) { false }
+    }
+
+    /** Ee number ki vere account lo PIN unte, adi check */
+    private suspend fun pinOkFor(phone: String, uid: String, pin: String?): Boolean {
+        val owner = try { fs.collection("phones").document(phone).get().await().getString("uid") } catch (_: Exception) { null }
+        if (owner == null || owner == uid) return true
+        val hash = try { fs.collection("users").document(owner).get().await().getString("pin") } catch (_: Exception) { null }
+        if (hash.isNullOrEmpty()) return true
+        return pin != null && pinHash(phone, pin) == hash
+    }
+
     // ---------- Favourites ----------
 
     private fun favSet(): Set<String> = prefs.getStringSet("favs", emptySet()) ?: emptySet()
@@ -465,6 +601,19 @@ object Chat {
         val ref = d.reference
 
         // Delete for everyone
+        if (type == "react" || type == "vote") {
+            val target = d.getString("target")
+            val local = target?.let { db.msg(it) }
+            if (local != null) {
+                val col = if (type == "react") "reactions" else "votes"
+                val cur = jsonMap(if (type == "react") local.reactions else local.votes).toMutableMap()
+                val v = d.getString("v") ?: ""
+                if (v.isEmpty()) cur.remove(from) else cur[from] = v
+                db.setField(local.id, col, org.json.JSONObject(cur as Map<*, *>).toString())
+            }
+            try { ref.delete().await() } catch (_: Exception) {}
+            return
+        }
         if (type == "sdel") {
             val target = d.getString("target")
             val st = target?.let { db.status(it) }
@@ -595,6 +744,7 @@ object Chat {
             replyId = d.getString("rid") ?: "", replyText = rtext,
             replyName = rname, fwd = d.getBoolean("fwd") ?: false,
             expires = if (ttl > 0) System.currentTimeMillis() + ttl else 0L,
+            viewOnce = d.getBoolean("vo") ?: false,
         )
         val fresh = db.insertMsg(m, readByMe = isOpen || type == "sys")
         try {
@@ -605,9 +755,10 @@ object Chat {
 
         val wantNotify = if (group != null) flag("notify_groups", true) else flag("notify_msgs", true)
         if (fresh && !isOpen && type != "sys" && wantNotify && !isMuted(peerKey)) {
-            val title = db.peer(peerKey)?.name ?: "Flikkchat"
+            val hidden = isLocked(peerKey)
+            val title = if (hidden) "Flikkchat" else db.peer(peerKey)?.name ?: "Flikkchat"
             val body = when {
-                !flag("notify_preview", true) -> "Kotha message"
+                hidden || !flag("notify_preview", true) -> "New message"
                 group != null -> "${nameOf(from)}: ${preview(m)}"
                 else -> preview(m)
             }
@@ -630,6 +781,7 @@ object Chat {
                 val members = db.group(gidOf(local.peer))?.members?.filter { it != me } ?: emptyList()
                 db.updateStatus(msgId, db.groupReceipt(msgId, by, status, members))
             } else {
+                db.groupReceipt(msgId, by, status, emptyList())
                 db.updateStatus(msgId, status)
             }
         }
@@ -649,7 +801,7 @@ object Chat {
 
     fun send(
         peer: String, text: String, type: String = "text", media: String = "", mime: String = "",
-        dur: Long = 0, reply: Msg? = null, fwd: Boolean = false,
+        dur: Long = 0, reply: Msg? = null, fwd: Boolean = false, viewOnce: Boolean = false,
     ) {
         val t = text.trim()
         if (type == "text" && t.isEmpty()) return
@@ -662,23 +814,27 @@ object Chat {
             replyName = reply?.let { if (it.fromMe) myName else nameOf(it.sender.ifEmpty { it.peer }) } ?: "",
             fwd = fwd,
             expires = timerOf(peer).let { if (it > 0) System.currentTimeMillis() + it else 0L },
+            viewOnce = viewOnce,
         )
         db.insertMsg(m)
         scope.launch { push(m) }
     }
 
     /** Photo / video pampu. Error unte message return chestundi. */
-    suspend fun sendMedia(peer: String, uri: Uri, isVideo: Boolean, caption: String, reply: Msg?): String? =
+    suspend fun sendMedia(
+        peer: String, uri: Uri, isVideo: Boolean, caption: String, reply: Msg?,
+        hd: Boolean = false, viewOnce: Boolean = false,
+    ): String? =
         withContext(Dispatchers.IO) {
             val id = UUID.randomUUID().toString()
             try {
                 if (isVideo) {
                     val (f, mime) = Media.prepareVideo(app, uri, id)
                         ?: return@withContext "Video 16 MB kanna chinnadi undali"
-                    send(peer, caption, "video", f.absolutePath, mime, Media.durationMs(f.absolutePath), reply)
+                    send(peer, caption, "video", f.absolutePath, mime, Media.durationMs(f.absolutePath), reply, viewOnce = viewOnce)
                 } else {
-                    val f = Media.prepareImage(app, uri, id)
-                    send(peer, caption, "image", f.absolutePath, "image/jpeg", 0, reply)
+                    val f = Media.prepareImage(app, uri, id, hd)
+                    send(peer, caption, "image", f.absolutePath, "image/jpeg", 0, reply, viewOnce = viewOnce)
                 }
                 null
             } catch (e: Exception) {
@@ -711,6 +867,7 @@ object Chat {
         if (isGroup(m.peer)) base["group"] = gidOf(m.peer)
         if (m.replyId.isNotEmpty()) base["rid"] = m.replyId
         if (m.fwd) base["fwd"] = true
+        if (m.viewOnce) base["vo"] = true
         if (m.dur > 0) base["dur"] = m.dur
         if (m.expires > 0 && m.type != "status") base["exp"] = (m.expires - m.ts).coerceAtLeast(60_000L)
         var bytes: ByteArray? = null
@@ -882,7 +1039,7 @@ object Chat {
             val members = (g.get("members") as? List<String>) ?: emptyList()
             @Suppress("UNCHECKED_CAST")
             val admins = (g.get("admins") as? List<String>) ?: emptyList()
-            db.upsertGroup(Group(gid, g.getString("name") ?: "Group", members, admins))
+            db.upsertGroup(Group(gid, g.getString("name") ?: "Group", members, admins, g.getString("flags") ?: ""))
             for (u in members) ensurePeer(u)
         } catch (_: Exception) {
             // Permission ledu = group nunchi teesesaru

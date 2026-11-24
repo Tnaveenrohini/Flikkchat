@@ -59,7 +59,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> Unit) {
+fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> Unit, openMediaLinks: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val caller = rememberCaller()
     val version by Chat.db.changes.collectAsState()
@@ -102,7 +102,8 @@ fun ContactInfoScreen(peer: String, onBack: () -> Unit, openImage: (String) -> U
         if (media.isNotEmpty()) {
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(BubbleThem).padding(14.dp)) {
                 Row {
-                    Text("Media", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.weight(1f))
+                    Text(tr("Media, links & docs"), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink,
+                        modifier = Modifier.weight(1f).clickable(onClick = openMediaLinks))
                     Text("${media.size}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Accent)
                 }
                 Spacer(Modifier.height(10.dp))

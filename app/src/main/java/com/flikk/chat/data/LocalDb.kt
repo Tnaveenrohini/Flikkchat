@@ -33,6 +33,9 @@ data class Msg(
     val deleted: Boolean = false,
     val starred: Boolean = false,
     val expires: Long = 0,
+    val reactions: String = "",
+    val votes: String = "",
+    val viewOnce: Boolean = false,
 )
 
 data class ChatRow(
@@ -60,14 +63,40 @@ data class CallLog(
 
 const val STATUS_TTL = 24 * 3_600_000L
 
-data class Group(val gid: String, val name: String, val members: List<String>, val admins: List<String>)
+data class Group(
+    val gid: String, val name: String, val members: List<String>, val admins: List<String>,
+    /** "s" = admins matrame messages pampagalaru, "e" = admins matrame info edit, "a" = admins matrame members add */
+    val flags: String = "",
+) {
+    val adminsOnlySend get() = 's' in flags
+    val adminsOnlyEdit get() = 'e' in flags
+    val adminsOnlyAdd get() = 'a' in flags
+}
 
 fun isGroup(peer: String) = peer.startsWith("g:")
 fun gidOf(peer: String) = peer.removePrefix("g:")
 
 /** Chat list lo last message preview */
+/** Poll: text lo JSON {"q": question, "o": [options], "m": multi} */
+data class Poll(val q: String, val options: List<String>, val multi: Boolean)
+
+fun pollOf(m: Msg): Poll? = if (m.type != "poll") null else try {
+    val j = org.json.JSONObject(m.text)
+    val arr = j.getJSONArray("o")
+    Poll(j.optString("q"), List(arr.length()) { arr.getString(it) }, j.optBoolean("m"))
+} catch (_: Exception) { null }
+
+/** votes / reactions: JSON {uid: value} */
+fun jsonMap(s: String): Map<String, String> = if (s.isBlank()) emptyMap() else try {
+    val j = org.json.JSONObject(s)
+    j.keys().asSequence().associateWith { j.getString(it) }
+} catch (_: Exception) { emptyMap() }
+
 fun preview(m: Msg): String = when {
     m.deleted -> "🚫 This message was deleted"
+    m.type == "poll" -> "📊 " + (pollOf(m)?.q ?: "Poll")
+    m.viewOnce && m.type == "image" -> "📷 View once photo"
+    m.viewOnce && m.type == "video" -> "🎥 View once video"
     m.type == "image" -> "📷 Photo" + if (m.text.isNotBlank()) " · ${m.text}" else ""
     m.type == "video" -> "🎥 Video" + if (m.text.isNotBlank()) " · ${m.text}" else ""
     m.type == "audio" -> "🎤 Voice message"
@@ -77,7 +106,7 @@ fun preview(m: Msg): String = when {
 /**
  * Chats annee ikkade — user phone lo (SQLite). Server lo emi save avvadu.
  */
-class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
+class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 5) {
 
     private val _changes = MutableStateFlow(0L)
     /** Prathi change ki number perugutundi — UI dinni chusi refresh avutundi. */
@@ -99,7 +128,7 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
         )
         db.execSQL("CREATE INDEX idx_msg_peer ON messages(peer, ts)")
         db.execSQL("CREATE TABLE peers(uid TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL)")
-        onUpgrade(db, 1, 4)
+        onUpgrade(db, 1, 5)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -127,9 +156,16 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
             db.execSQL("CREATE TABLE IF NOT EXISTS statuses(id TEXT PRIMARY KEY, owner TEXT NOT NULL, type TEXT NOT NULL, text TEXT NOT NULL, color INTEGER NOT NULL, media TEXT NOT NULL, ts INTEGER NOT NULL, seen INTEGER NOT NULL DEFAULT 0)")
             db.execSQL("CREATE TABLE IF NOT EXISTS calllog(id TEXT PRIMARY KEY, peer TEXT NOT NULL, outgoing INTEGER NOT NULL, video INTEGER NOT NULL, ts INTEGER NOT NULL, dur INTEGER NOT NULL, missed INTEGER NOT NULL)")
         }
+        if (oldVersion < 5) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN reactions TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE messages ADD COLUMN votes TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE messages ADD COLUMN view_once INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE rcpt ADD COLUMN ts INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE groups ADD COLUMN flags TEXT NOT NULL DEFAULT ''")
+        }
     }
 
-    private val COLS = "id, peer, from_me, text, ts, status, sender, type, media, mime, dur, reply_id, reply_text, reply_name, fwd, deleted, starred, expires"
+    private val COLS = "id, peer, from_me, text, ts, status, sender, type, media, mime, dur, reply_id, reply_text, reply_name, fwd, deleted, starred, expires, reactions, votes, view_once"
 
     private fun Cursor.toMsg() = Msg(
         id = getString(0), peer = getString(1), fromMe = getInt(2) == 1, text = getString(3),
@@ -137,6 +173,7 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
         media = getString(8), mime = getString(9), dur = getLong(10), replyId = getString(11),
         replyText = getString(12), replyName = getString(13), fwd = getInt(14) == 1,
         deleted = getInt(15) == 1, starred = getInt(16) == 1, expires = getLong(17),
+        reactions = getString(18), votes = getString(19), viewOnce = getInt(20) == 1,
     )
 
     private fun query(sql: String, args: Array<String>?): List<Msg> =
@@ -153,6 +190,7 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
             put("reply_name", m.replyName); put("fwd", if (m.fwd) 1 else 0)
             put("deleted", if (m.deleted) 1 else 0); put("starred", if (m.starred) 1 else 0)
             put("expires", m.expires)
+            put("reactions", m.reactions); put("votes", m.votes); put("view_once", if (m.viewOnce) 1 else 0)
         }
         val row = writableDatabase.insertWithOnConflict("messages", null, cv, SQLiteDatabase.CONFLICT_IGNORE)
         if (row != -1L) bump()
@@ -167,6 +205,25 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
         val n = writableDatabase.update("messages", cv, "id=? AND status<?", arrayOf(id, status.toString()))
         if (n > 0) bump()
     }
+
+    fun setField(id: String, col: String, value: String) {
+        val cv = ContentValues().apply { put(col, value) }
+        if (writableDatabase.update("messages", cv, "id=?", arrayOf(id)) > 0) bump()
+    }
+
+    /** Message info: (uid, status, time) */
+    fun receipts(msgId: String): List<Triple<String, Int, Long>> = readableDatabase.rawQuery(
+        "SELECT uid, status, ts FROM rcpt WHERE msg_id=? AND status<4 ORDER BY ts", arrayOf(msgId)
+    ).use { c -> buildList { while (c.moveToNext()) add(Triple(c.getString(0), c.getInt(1), c.getLong(2))) } }
+
+    fun media(peer: String): List<Msg> =
+        query("SELECT $COLS FROM messages WHERE peer=? AND media!='' AND deleted=0 AND view_once=0 AND (type='image' OR type='video') ORDER BY ts ASC", arrayOf(peer))
+
+    fun withLinks(peer: String): List<Msg> =
+        query("SELECT $COLS FROM messages WHERE peer=? AND deleted=0 AND (text LIKE '%http://%' OR text LIKE '%https://%') ORDER BY ts DESC", arrayOf(peer))
+
+    fun searchType(type: String): List<Msg> =
+        query("SELECT $COLS FROM messages WHERE deleted=0 AND type=? AND view_once=0 ORDER BY ts DESC LIMIT 200", arrayOf(type))
 
     fun setStarred(id: String, starred: Boolean) {
         val cv = ContentValues().apply { put("starred", if (starred) 1 else 0) }
@@ -285,16 +342,17 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
     // ---------- Groups ----------
 
     fun group(gid: String): Group? = readableDatabase.rawQuery(
-        "SELECT gid, name, members, admins FROM groups WHERE gid=?", arrayOf(gid)
+        "SELECT gid, name, members, admins, flags FROM groups WHERE gid=?", arrayOf(gid)
     ).use { c ->
         if (c.moveToFirst()) Group(c.getString(0), c.getString(1), c.getString(2).split(",").filter { it.isNotEmpty() },
-            c.getString(3).split(",").filter { it.isNotEmpty() }) else null
+            c.getString(3).split(",").filter { it.isNotEmpty() }, c.getString(4)) else null
     }
 
     fun upsertGroup(g: Group) {
         val cv = ContentValues().apply {
             put("gid", g.gid); put("name", g.name)
             put("members", g.members.joinToString(",")); put("admins", g.admins.joinToString(","))
+            put("flags", g.flags)
         }
         writableDatabase.insertWithOnConflict("groups", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
         upsertPeer("g:${g.gid}", g.name, "", overwriteName = true)
@@ -304,8 +362,9 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 4) {
 
     /** Group lo member status save chesi, andari kanna takkuva status return chestundi. */
     fun groupReceipt(msgId: String, uid: String, status: Int, members: List<String>): Int {
-        writableDatabase.execSQL("INSERT OR IGNORE INTO rcpt(msg_id, uid, status) VALUES(?,?,?)", arrayOf<Any>(msgId, uid, status))
-        writableDatabase.execSQL("UPDATE rcpt SET status=? WHERE msg_id=? AND uid=? AND status<?", arrayOf<Any>(status, msgId, uid, status))
+        val now = System.currentTimeMillis()
+        writableDatabase.execSQL("INSERT OR IGNORE INTO rcpt(msg_id, uid, status, ts) VALUES(?,?,?,?)", arrayOf<Any>(msgId, uid, status, now))
+        writableDatabase.execSQL("UPDATE rcpt SET status=?, ts=? WHERE msg_id=? AND uid=? AND status<?", arrayOf<Any>(status, now, msgId, uid, status))
         if (members.isEmpty()) return status
         val got = readableDatabase.rawQuery("SELECT uid, status FROM rcpt WHERE msg_id=?", arrayOf(msgId)).use { c ->
             buildMap { while (c.moveToNext()) put(c.getString(0), c.getInt(1)) }

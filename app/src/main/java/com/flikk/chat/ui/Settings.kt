@@ -34,6 +34,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
@@ -173,11 +176,12 @@ private fun IconRow(icon: ImageVector, bg: Color, fg: Color, label: String, sub:
 fun SettingsScreen(
     onBack: () -> Unit, openProfile: () -> Unit, openPrivacy: () -> Unit, openChats: () -> Unit,
     openNotifications: () -> Unit, openStorage: () -> Unit, openStarred: () -> Unit,
+    openLanguage: () -> Unit = {}, openBackup: () -> Unit = {}, openTwoStep: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val version by Chat.db.changes.collectAsState()
     val about = remember(version) { Chat.myAbout }
-    SubPage("Settings", onBack) {
+    SubPage(tr("Settings"), onBack) {
         Row(
             Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp))
                 .background(BubbleThem).clickable(onClick = openProfile).padding(16.dp),
@@ -194,15 +198,18 @@ fun SettingsScreen(
             }
         }
         Card {
-            IconRow(Icons.Filled.Key, Color(0xFFE7E3FF), Color(0xFF3A20C2), "Account", "Profile, phone number", openProfile)
-            IconRow(Icons.Filled.Lock, Color(0xFFD7F5EC), Color(0xFF0F5E4A), "Privacy", "Last seen, blocked, app lock", openPrivacy)
-            IconRow(Icons.AutoMirrored.Filled.Chat, Color(0xFFDCEBFF), Color(0xFF1E4E8C), "Chats", "Theme, backup, starred", openChats)
-            IconRow(Icons.Filled.Notifications, Color(0xFFFFE4D6), Color(0xFF9A3412), "Notifications", "Message, group and call tones", openNotifications)
-            IconRow(Icons.Filled.Storage, Color(0xFFFFF1C7), Color(0xFF854D0E), "Storage and data", "Space used, clear media", openStorage)
+            IconRow(Icons.Filled.Key, Color(0xFFE7E3FF), Color(0xFF3A20C2), tr("Account"), tr("Profile, two-step verification"), openProfile)
+            IconRow(Icons.Filled.Lock, Color(0xFFD7F5EC), Color(0xFF0F5E4A), tr("Privacy"), tr("Last seen, blocked, app lock"), openPrivacy)
+            IconRow(Icons.AutoMirrored.Filled.Chat, Color(0xFFDCEBFF), Color(0xFF1E4E8C), tr("Chats"), tr("Theme, wallpaper, font size"), openChats)
+            IconRow(Icons.Filled.CloudUpload, Color(0xFFD7F5EC), Color(0xFF0F5E4A), tr("Chat backup"), tr("Back up and restore"), openBackup)
+            IconRow(Icons.Filled.Notifications, Color(0xFFFFE4D6), Color(0xFF9A3412), tr("Notifications"), tr("Message, group and call tones"), openNotifications)
+            IconRow(Icons.Filled.Storage, Color(0xFFFFF1C7), Color(0xFF854D0E), tr("Storage and data"), tr("Space used, clear media"), openStorage)
         }
         Card {
-            IconRow(Icons.Filled.Info, Color(0xFFFCE1F0), Color(0xFF9D174D), "Starred messages", "Mee save chesina messages", openStarred)
-            IconRow(Icons.Filled.Share, Color(0xFFE7E3FF), Color(0xFF3A20C2), "Invite a friend", "Share Flikkchat") {
+            IconRow(Icons.Filled.Language, Color(0xFFFCE1F0), Color(0xFF9D174D), tr("App language"), Languages.first { it.first == appLang }.second, openLanguage)
+            IconRow(Icons.Filled.Password, Color(0xFFE5E7EB), Color(0xFF374151), tr("Two-step verification"), tr(if (Chat.hasPin) "On" else "Off"), openTwoStep)
+            IconRow(Icons.Filled.Info, Color(0xFFFFF1C7), Color(0xFF854D0E), tr("Starred messages"), tr("Messages you saved"), openStarred)
+            IconRow(Icons.Filled.Share, Color(0xFFE7E3FF), Color(0xFF3A20C2), tr("Invite a friend"), tr("Share Flikkchat")) {
                 val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
                     Intent.EXTRA_TEXT,
                     "Hey! Flikkchat lo chat cheddam 💬 Made in India app 🇮🇳\nhttps://github.com/Tnaveenrohini/Flikkchat/releases/latest"

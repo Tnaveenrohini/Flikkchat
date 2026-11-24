@@ -39,6 +39,8 @@ import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallReceived
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Contacts
@@ -150,6 +152,9 @@ fun HomeScreen(
     openStatusText: () -> Unit,
     openStatusViewer: (String) -> Unit,
     openCallPicker: (Boolean) -> Unit,
+    openSearch: () -> Unit = {},
+    openArchived: () -> Unit = {},
+    openLocked: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -163,7 +168,7 @@ fun HomeScreen(
 
     Box(Modifier.fillMaxSize().background(Bg)) {
         when (tab) {
-            0 -> ChatsTab(openChat, openContacts, openProfile, openNewGroup, openStarred)
+            0 -> ChatsTab(openChat, openContacts, openProfile, openNewGroup, openStarred, openSearch, openArchived, openLocked)
             1 -> UpdatesTab(openStatusText, openStatusViewer)
             2 -> GroupsTab(openChat, openNewGroup)
             else -> CallsTab(openCallPicker, openContacts)
@@ -246,6 +251,7 @@ fun SearchPill(q: String, onChange: (String) -> Unit, hint: String) {
 private fun ChatsTab(
     openChat: (String) -> Unit, openContacts: () -> Unit, openProfile: () -> Unit,
     openNewGroup: () -> Unit, openStarred: () -> Unit,
+    openSearch: () -> Unit, openArchived: () -> Unit, openLocked: () -> Unit,
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -266,8 +272,12 @@ private fun ChatsTab(
         }
     }
 
-    val unreadCount = chats.count { it.unread > 0 }
-    val shown = chats.filter {
+    var rowMenu by remember { mutableStateOf<ChatRow?>(null) }
+    val archivedCount = chats.count { Chat.isArchived(it.peer) && !Chat.isLocked(it.peer) }
+    val lockedCount = chats.count { Chat.isLocked(it.peer) }
+    val visible = chats.filter { !Chat.isArchived(it.peer) && !Chat.isLocked(it.peer) }
+    val unreadCount = visible.count { it.unread > 0 }
+    val shown = visible.filter {
         (q.isBlank() || it.name.contains(q.trim(), ignoreCase = true)) && when (filter) {
             1 -> it.unread > 0
             2 -> isGroup(it.peer)
@@ -292,25 +302,30 @@ private fun ChatsTab(
                         }
                     }
                 }
-                Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp)) {
-                    SearchPill(q, { q = it }, "Search chats, people, messages")
+                Row(
+                    Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp).fillMaxWidth().height(46.dp)
+                        .clip(RoundedCornerShape(23.dp)).background(Surface).clickable(onClick = openSearch).padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Search, null, tint = Muted, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(tr("Search chats, people, messages"), color = Muted, fontSize = 15.sp)
                 }
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(bottom = 10.dp),
                 ) {
-                    item { Chip("All", filter == 0) { filter = 0 } }
-                    item { Chip(if (unreadCount > 0) "Unread $unreadCount" else "Unread", filter == 1) { filter = 1 } }
-                    item { Chip("Groups", filter == 2) { filter = 2 } }
-                    item { Chip("Favourites", filter == 3) { filter = 3 } }
+                    item { Chip(tr("All"), filter == 0) { filter = 0 } }
+                    item { Chip(if (unreadCount > 0) tr("Unread") + " $unreadCount" else tr("Unread"), filter == 1) { filter = 1 } }
+                    item { Chip(tr("Groups"), filter == 2) { filter = 2 } }
+                    item { Chip(tr("Favourites"), filter == 3) { filter = 3 } }
                 }
+                if (lockedCount > 0) FolderRow(Icons.Filled.Lock, tr("Locked chats"), "", openLocked)
+                if (archivedCount > 0) FolderRow(Icons.Filled.Archive, tr("Archived"), "$archivedCount", openArchived)
             }
             items(shown, key = { it.peer }) { c ->
-                ChatRowItem(c, onLong = {
-                    val fav = Chat.toggleFav(c.peer)
-                    Toast.makeText(ctx, if (fav) "⭐ Favourites lo add chesam" else "Favourites nunchi teesesam", Toast.LENGTH_SHORT).show()
-                }) { openChat(c.peer) }
+                ChatRowItem(c, onLong = { rowMenu = c }) { openChat(c.peer) }
             }
             if (q.isNotBlank() && results.isNotEmpty()) {
                 item { SectionLabel("Messages") }
@@ -338,9 +353,48 @@ private fun ChatsTab(
                 }
             }
         }
+        rowMenu?.let { c ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { rowMenu = null },
+                title = { Text(c.name) },
+                text = {
+                    Column {
+                        val fav = Chat.isFav(c.peer)
+                        MenuLine(if (fav) tr("Remove from favourites") else tr("Add to favourites")) { Chat.toggleFav(c.peer); rowMenu = null }
+                        MenuLine(tr("Archive chat")) {
+                            Chat.setArchived(c.peer, true); rowMenu = null
+                            Toast.makeText(ctx, tr("Chat archived"), Toast.LENGTH_SHORT).show()
+                        }
+                        MenuLine(tr("Lock chat")) {
+                            Chat.setLocked(c.peer, true); rowMenu = null
+                            Toast.makeText(ctx, tr("Chat locked 🔒"), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { rowMenu = null }) { Text(tr("Cancel"), color = Muted) } },
+                containerColor = BubbleThem,
+            )
+        }
         SquareFab(Icons.Filled.AddComment, "New chat", Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp)) {
             openContacts()
         }
+    }
+}
+
+@Composable
+private fun MenuLine(t: String, onClick: () -> Unit) =
+    Text(t, color = Ink, fontSize = 16.sp, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp))
+
+@Composable
+private fun FolderRow(icon: ImageVector, label: String, count: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Accent, modifier = Modifier.size(24.dp)) }
+        Spacer(Modifier.width(14.dp))
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink, modifier = Modifier.weight(1f))
+        if (count.isNotEmpty()) Text(count, color = Accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
     }
 }
 

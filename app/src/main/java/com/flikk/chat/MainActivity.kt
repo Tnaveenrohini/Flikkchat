@@ -47,6 +47,21 @@ import com.flikk.chat.ui.StorageScreen
 import com.flikk.chat.ui.TextStatusScreen
 import com.flikk.chat.ui.WelcomeScreen
 import com.flikk.chat.ui.applyTheme
+import com.flikk.chat.ui.appLang
+import com.flikk.chat.ui.ArchivedScreen
+import com.flikk.chat.ui.BackupScreen
+import com.flikk.chat.ui.ChatThemeScreen
+import com.flikk.chat.ui.GroupSettingsScreen
+import com.flikk.chat.ui.LanguageScreen
+import com.flikk.chat.ui.LockedChatsScreen
+import com.flikk.chat.ui.MediaLinksScreen
+import com.flikk.chat.ui.MediaViewerScreen
+import com.flikk.chat.ui.MessageInfoScreen
+import com.flikk.chat.ui.PollCreateScreen
+import com.flikk.chat.ui.SearchScreen
+import com.flikk.chat.ui.SendPreviewScreen
+import com.flikk.chat.ui.ShareLocationScreen
+import com.flikk.chat.ui.TwoStepScreen
 import com.flikk.chat.ui.palette
 
 sealed class Screen {
@@ -73,6 +88,20 @@ sealed class Screen {
     data object StatusText : Screen()
     data class StatusView(val owner: String) : Screen()
     data class CallPick(val video: Boolean) : Screen()
+    data object Search : Screen()
+    data object Archived : Screen()
+    data object Locked : Screen()
+    data object Language : Screen()
+    data object TwoStep : Screen()
+    data object BackupPage : Screen()
+    data object ChatTheme : Screen()
+    data class MsgInfo(val msgId: String) : Screen()
+    data class Poll(val peer: String) : Screen()
+    data class SendPreview(val peer: String, val uri: android.net.Uri, val video: Boolean) : Screen()
+    data class Location(val peer: String) : Screen()
+    data class MediaView(val peer: String, val msgId: String) : Screen()
+    data class MediaLinks(val peer: String) : Screen()
+    data class GroupSettings(val gid: String) : Screen()
 }
 
 class MainActivity : FragmentActivity() {
@@ -90,6 +119,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyTheme(this)
+        appLang = Chat.language
         applyBars()
         stack = listOf(
             when {
@@ -130,6 +160,9 @@ class MainActivity : FragmentActivity() {
                         openStatusText = { push(Screen.StatusText) },
                         openStatusViewer = { push(Screen.StatusView(it)) },
                         openCallPicker = { push(Screen.CallPick(it)) },
+                        openSearch = { push(Screen.Search) },
+                        openArchived = { push(Screen.Archived) },
+                        openLocked = { push(Screen.Locked) },
                     )
                     Screen.Contacts -> ContactsScreen(
                         onBack = ::pop,
@@ -141,10 +174,13 @@ class MainActivity : FragmentActivity() {
                         onBack = ::pop,
                         openProfile = { push(Screen.Profile) },
                         openPrivacy = { push(Screen.Privacy) },
-                        openChats = { push(Screen.ChatsSettings) },
+                        openChats = { push(Screen.ChatTheme) },
                         openNotifications = { push(Screen.Notifications) },
                         openStorage = { push(Screen.Storage) },
                         openStarred = { push(Screen.Starred) },
+                        openLanguage = { push(Screen.Language) },
+                        openBackup = { push(Screen.BackupPage) },
+                        openTwoStep = { push(Screen.TwoStep) },
                     )
                     Screen.Privacy -> PrivacyScreen(onBack = ::pop, openBlocked = { push(Screen.Blocked) })
                     Screen.Blocked -> BlockedScreen(onBack = ::pop)
@@ -166,9 +202,33 @@ class MainActivity : FragmentActivity() {
                         openForward = { push(Screen.Forward(it)) },
                         openImage = { push(Screen.Viewer(it)) },
                         openContactInfo = { push(Screen.ContactInfo(it)) },
+                        openPoll = { push(Screen.Poll(it)) },
+                        openSendPreview = { p, u, v -> push(Screen.SendPreview(p, u, v)) },
+                        openLocation = { push(Screen.Location(it)) },
+                        openMediaViewer = { p, id -> push(Screen.MediaView(p, id)) },
+                        openMessageInfo = { push(Screen.MsgInfo(it)) },
+                        openMediaLinks = { push(Screen.MediaLinks(it)) },
                     )
-                    is Screen.ContactInfo -> ContactInfoScreen(current.peer, onBack = ::pop, openImage = { push(Screen.Viewer(it)) })
-                    is Screen.GroupInfo -> GroupInfoScreen(gid = current.gid, onBack = ::pop)
+                    is Screen.ContactInfo -> ContactInfoScreen(current.peer, onBack = ::pop, openImage = { push(Screen.Viewer(it)) },
+                        openMediaLinks = { push(Screen.MediaLinks(current.peer)) })
+                    is Screen.GroupInfo -> GroupInfoScreen(gid = current.gid, onBack = ::pop,
+                        openSettings = { push(Screen.GroupSettings(current.gid)) },
+                        openMediaLinks = { push(Screen.MediaLinks("g:" + current.gid)) })
+                    Screen.Search -> SearchScreen(onBack = ::pop, openChat = { push(Screen.Conversation(it)) },
+                        openMedia = { p, id -> push(Screen.MediaView(p, id)) })
+                    Screen.Archived -> ArchivedScreen(onBack = ::pop, openChat = { push(Screen.Conversation(it)) })
+                    Screen.Locked -> LockedChatsScreen(onBack = ::pop, openChat = { push(Screen.Conversation(it)) }, authenticate = ::authenticate)
+                    Screen.Language -> LanguageScreen(onBack = ::pop)
+                    Screen.TwoStep -> TwoStepScreen(onBack = ::pop)
+                    Screen.BackupPage -> BackupScreen(onBack = ::pop)
+                    Screen.ChatTheme -> ChatThemeScreen(onBack = ::pop)
+                    is Screen.MsgInfo -> MessageInfoScreen(current.msgId, onBack = ::pop)
+                    is Screen.Poll -> PollCreateScreen(current.peer, onDone = ::pop)
+                    is Screen.SendPreview -> SendPreviewScreen(current.peer, current.uri, current.video, onDone = ::pop)
+                    is Screen.Location -> ShareLocationScreen(current.peer, onDone = ::pop)
+                    is Screen.MediaView -> MediaViewerScreen(current.peer, current.msgId, onBack = ::pop, openForward = { push(Screen.Forward(it)) })
+                    is Screen.MediaLinks -> MediaLinksScreen(current.peer, onBack = ::pop, openMedia = { push(Screen.MediaView(current.peer, it)) })
+                    is Screen.GroupSettings -> GroupSettingsScreen(current.gid, onBack = ::pop)
                     is Screen.Forward -> ForwardScreen(msgId = current.msgId, onDone = ::pop)
                     is Screen.Viewer -> ImageViewer(path = current.path, onBack = ::pop)
                     Screen.StatusText -> TextStatusScreen(onDone = ::pop)
@@ -196,6 +256,19 @@ class MainActivity : FragmentActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         applyTheme(this)
+    }
+
+    /** Fingerprint / screen lock adigi, success ayite onOk */
+    fun authenticate(onOk: () -> Unit) {
+        val auth = BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        if (BiometricManager.from(this).canAuthenticate(auth) != BiometricManager.BIOMETRIC_SUCCESS) { onOk(); return }
+        val prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { onOk() }
+        })
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder().setTitle("Flikkchat").setSubtitle(com.flikk.chat.ui.tr("Locked chats"))
+                .setAllowedAuthenticators(auth).build()
+        )
     }
 
     private fun unlock() {

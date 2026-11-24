@@ -1,6 +1,8 @@
 package com.flikk.chat.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyRow
@@ -200,7 +202,7 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
 // ---------------- Group info ----------------
 
 @Composable
-fun GroupInfoScreen(gid: String, onBack: () -> Unit) {
+fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = {}, openMediaLinks: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val version by Chat.db.changes.collectAsState()
     val group by produceState(initialValue = Chat.db.group(gid), version) { value = Chat.db.group(gid) }
@@ -275,14 +277,16 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit) {
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 InfoTile(Icons.AutoMirrored.Filled.Chat, "Message", Modifier.weight(1f), onClick = onBack)
                 if (iAmAdmin) InfoTile(Icons.Filled.PersonAdd, "Add", Modifier.weight(1f)) { adding = true }
-                if (iAmMember) InfoTile(Icons.AutoMirrored.Filled.ExitToApp, "Exit", Modifier.weight(1f), tint = Danger) { askLeave = true }
+                if (iAmMember) InfoTile(Icons.Filled.Settings, tr("Settings"), Modifier.weight(1f), onClick = openSettings)
+                if (iAmMember) InfoTile(Icons.AutoMirrored.Filled.ExitToApp, tr("Exit"), Modifier.weight(1f), tint = Danger) { askLeave = true }
             }
             if (media.isNotEmpty()) {
                 Column(
                     Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp))
                         .background(Bg).padding(14.dp),
                 ) {
-                    Text("Media", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(tr("Media, links & docs"), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink,
+                        modifier = Modifier.clickable(onClick = openMediaLinks))
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         media.forEach { m ->
@@ -369,35 +373,63 @@ private data class Target(val peer: String, val name: String, val sub: String)
 
 @Composable
 fun ForwardScreen(msgId: String, onDone: () -> Unit) {
-    var picked by remember { mutableStateOf(setOf<String>()) }
+    var picked by remember { mutableStateOf(listOf<String>()) }
+    var q by remember { mutableStateOf("") }
     val targets by produceState(initialValue = emptyList<Target>()) {
         value = withContext(Dispatchers.IO) {
             val chats = Chat.db.chats()
                 .filter { !it.peer.startsWith("g:") || (Chat.db.group(it.peer.removePrefix("g:"))?.members?.contains(Chat.me) == true) }
-                .map { Target(it.peer, it.name, if (it.peer.startsWith("g:")) "Group" else it.phone) }
+                .map { Target(it.peer, it.name, if (it.peer.startsWith("g:")) tr("Group") else it.phone) }
             val seen = chats.map { it.peer }.toSet()
             chats + Chat.db.people().filter { it.uid !in seen }.map { Target(it.uid, it.name, it.phone) }
         }
     }
-    Scaffold(
-        containerColor = Bg,
-        topBar = { Header(title = "Forward to...", subtitle = if (picked.isEmpty()) null else "${picked.size} selected", onBack = onDone) },
-        floatingActionButton = {
-            if (picked.isNotEmpty()) FloatingActionButton(
-                onClick = {
-                    Chat.db.msg(msgId)?.let { Chat.forward(it, picked.toList()) }
-                    onDone()
-                },
-                containerColor = Accent, contentColor = Color.White,
-            ) { Icon(Icons.AutoMirrored.Filled.Send, "Send") }
-        },
-    ) { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-            items(targets, key = { it.peer }) { t ->
-                PickRow(t.name, t.sub, t.peer in picked) {
-                    picked = if (t.peer in picked) picked - t.peer else picked + t.peer
+    val shown = targets.filter { q.isBlank() || it.name.contains(q.trim(), true) }
+    Box(Modifier.fillMaxSize().background(Bg)) {
+        LazyColumn(Modifier.fillMaxSize()) {
+            item {
+                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 16.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp)) }
+                    Text(tr("Forward to…"), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                }
+                Box(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 6.dp)) { SearchPill(q, { q = it }, tr("Search")) }
+                SectionLabel(tr("Recent chats"))
+            }
+            items(shown, key = { it.peer }) { t ->
+                val on = t.peer in picked
+                Row(
+                    Modifier.fillMaxWidth().clickable { picked = if (on) picked - t.peer else picked + t.peer }.padding(horizontal = 20.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Avatar(t.name, 48.dp)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(t.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)
+                        if (t.sub.isNotEmpty()) Text(t.sub, color = Muted, fontSize = 13.sp)
+                    }
+                    Box(
+                        Modifier.size(26.dp).clip(CircleShape).then(if (on) Modifier.background(Accent) else Modifier.border(2.dp, Line, CircleShape)),
+                        contentAlignment = Alignment.Center,
+                    ) { if (on) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
                 }
             }
+            item { Spacer(Modifier.height(100.dp)) }
+        }
+        if (picked.isNotEmpty()) Row(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(BubbleThem).navigationBarsPadding()
+                .padding(start = 20.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(picked.joinToString(", ") { p -> targets.firstOrNull { it.peer == p }?.name ?: "" }, color = Ink, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
+            Box(
+                Modifier.size(52.dp).clip(CircleShape).background(Accent).clickable {
+                    Chat.db.msg(msgId)?.let { Chat.forward(it, picked) }
+                    onDone()
+                },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.AutoMirrored.Filled.Send, tr("Send"), tint = Color.White) }
         }
     }
 }
@@ -410,36 +442,37 @@ fun StarredScreen(onBack: () -> Unit, openChat: (String) -> Unit) {
     val list by produceState(initialValue = emptyList<Msg>(), version) {
         value = withContext(Dispatchers.IO) { Chat.db.starred() }
     }
-    Scaffold(containerColor = Bg, topBar = { Header(title = "Starred messages", onBack = onBack) }) { pad ->
+    Column(Modifier.fillMaxSize().background(ChatBg)) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 16.dp, top = 14.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp)) }
+            Text(tr("Starred"), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+        }
         if (list.isEmpty()) {
-            Column(
-                Modifier.fillMaxSize().padding(pad).padding(32.dp),
-                verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
+            Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("⭐", fontSize = 40.sp)
                 Spacer(Modifier.height(8.dp))
-                Text("Message ni long press chesi star nokkandi", color = Muted, textAlign = TextAlign.Center)
+                Text(tr("Long-press a message and tap Star to save it here."), color = Muted, textAlign = TextAlign.Center)
             }
-        } else {
-            LazyColumn(Modifier.fillMaxSize().padding(pad)) {
-                items(list, key = { it.id }) { m ->
-                    Column(
-                        Modifier.fillMaxWidth().clickable { openChat(m.peer) }.padding(horizontal = 16.dp, vertical = 10.dp)
-                    ) {
+        } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+            items(list, key = { it.id }) { m ->
+                val who = if (m.fromMe) tr("You") else Chat.nameOf(m.sender.ifEmpty { m.peer })
+                val chatName = Chat.db.peer(m.peer)?.name ?: ""
+                Row(
+                    Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(BubbleThem)
+                        .clickable { openChat(m.peer) }.padding(14.dp),
+                ) {
+                    Avatar(if (m.fromMe) Chat.myName else who, 40.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            val who = if (m.fromMe) "You" else Chat.nameOf(m.sender.ifEmpty { m.peer })
-                            val chatName = Chat.db.peer(m.peer)?.name ?: ""
-                            Text(
-                                if (m.peer.startsWith("g:")) "$who ▸ $chatName" else who,
-                                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
+                            Text(if (m.peer.startsWith("g:")) "$who › $chatName" else who, fontWeight = FontWeight.Bold, color = Ink,
+                                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(listTime(m.ts), fontSize = 12.sp, color = Muted)
                         }
-                        Spacer(Modifier.height(3.dp))
-                        Text(preview(m), color = Muted, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(4.dp))
+                        Text(preview(m), color = DayInk, fontSize = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                     }
-                    HorizontalDivider(color = Line)
+                    Icon(Icons.Filled.Star, null, tint = Color(0xFFE3A008), modifier = Modifier.size(16.dp))
                 }
             }
         }

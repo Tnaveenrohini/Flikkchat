@@ -217,6 +217,8 @@ fun ProfileSetupScreen(phone: String, onBack: () -> Unit, onDone: () -> Unit) {
     var about by rememberSaveable { mutableStateOf("Hey there! I am on Flikkchat") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var needPin by remember { mutableStateOf(false) }
+    var pin by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     Column(
         Modifier.fillMaxSize().background(Bg).statusBarsPadding().navigationBarsPadding().imePadding()
@@ -243,7 +245,11 @@ fun ProfileSetupScreen(phone: String, onBack: () -> Unit, onDone: () -> Unit) {
         Spacer(Modifier.height(30.dp))
         BoxField("Name", name, { name = it.take(40) }, focused = true)
         Spacer(Modifier.height(18.dp))
-        BoxField("About", about, { about = it.take(140) })
+        BoxField(tr("About"), about, { about = it.take(140) })
+        if (needPin) {
+            Spacer(Modifier.height(18.dp))
+            BoxField(tr("Two-step verification PIN"), pin, { pin = it.filter { c -> c.isDigit() }.take(6) }, focused = true, keyboard = KeyboardType.NumberPassword)
+        }
         error?.let { Spacer(Modifier.height(10.dp)); Text(it, color = Danger, fontSize = 13.sp) }
         Spacer(Modifier.weight(1f))
         Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
@@ -254,10 +260,14 @@ fun ProfileSetupScreen(phone: String, onBack: () -> Unit, onDone: () -> Unit) {
         PillButton("Start chatting", enabled = name.isNotBlank(), busy = busy) {
             busy = true; error = null
             scope.launch {
-                val err = Chat.register(name, phone)
+                val err = Chat.register(name, phone, if (needPin) pin else null)
                 if (err == null && about.isNotBlank()) Chat.updateProfile(name, about)
                 busy = false
-                if (err == null) onDone() else error = err
+                when {
+                    err == null -> onDone()
+                    err == Chat.PIN_REQUIRED -> { needPin = true; error = tr("This number has two-step verification. Enter the PIN.") }
+                    else -> error = tr(err)
+                }
             }
         }
     }

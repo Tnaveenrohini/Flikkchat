@@ -32,12 +32,13 @@ object Media {
     }
 
     /** Photo ni chinnadi (max 1600px, JPEG 80%) chesi app folder lo save. */
-    fun prepareImage(ctx: Context, uri: Uri, id: String): File {
+    fun prepareImage(ctx: Context, uri: Uri, id: String, hd: Boolean = false): File {
+        val maxSide = if (hd) 3000 else MAX_SIDE
         val bmp: Bitmap = if (Build.VERSION.SDK_INT >= 28) {
             ImageDecoder.decodeBitmap(ImageDecoder.createSource(ctx.contentResolver, uri)) { dec, info, _ ->
                 val w = info.size.width
                 val h = info.size.height
-                val scale = min(1f, MAX_SIDE.toFloat() / max(w, h))
+                val scale = min(1f, maxSide.toFloat() / max(w, h))
                 dec.setTargetSize(max(1, (w * scale).toInt()), max(1, (h * scale).toInt()))
                 dec.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             }
@@ -45,13 +46,13 @@ object Media {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
             var sample = 1
-            while (max(bounds.outWidth, bounds.outHeight) / sample > MAX_SIDE * 2) sample *= 2
+            while (max(bounds.outWidth, bounds.outHeight) / sample > maxSide * 2) sample *= 2
             val opts = BitmapFactory.Options().apply { inSampleSize = sample }
             ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
                 ?: error("Photo open avvaledu")
         }
         val out = File(dir(ctx), "$id.jpg")
-        out.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 80, it) }
+        out.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, if (hd) 92 else 80, it) }
         return out
     }
 

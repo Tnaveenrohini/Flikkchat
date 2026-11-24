@@ -1,6 +1,7 @@
 package com.flikk.chat.ui
 
 import android.Manifest
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.width
@@ -135,6 +136,16 @@ fun CallScreen(st: CallState) {
         Phase.ENDED -> st.endReason
     }
 
+    if (st.phase == Phase.INCOMING) {
+        IncomingLayout(st, name) {
+            if (Calls.hasPermissions(st.video)) Calls.accept()
+            else acceptLauncher.launch(
+                if (st.video) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+                else arrayOf(Manifest.permission.RECORD_AUDIO)
+            )
+        }
+        return
+    }
     if (!st.video) {
         VoiceCallLayout(st, name, status) {
             if (Calls.hasPermissions(false)) Calls.accept() else acceptLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
@@ -310,5 +321,70 @@ private fun GridBtn(icon: ImageVector, label: String, active: Boolean, onClick: 
         ) { Icon(icon, label, tint = if (active) NavBg else Color.White, modifier = Modifier.size(26.dp)) }
         Spacer(Modifier.height(8.dp))
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+    }
+}
+
+private val QuickReplies = listOf(
+    "Can't talk now. I'll call you back.",
+    "I'm in a meeting.",
+    "On my way.",
+    "Call me later.",
+)
+
+/** 📲 Incoming call screen */
+@Composable
+private fun IncomingLayout(st: CallState, name: String, onAccept: () -> Unit) {
+    var showReplies by remember { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxSize().background(NavBg).statusBarsPadding().navigationBarsPadding()
+            .padding(start = 24.dp, end = 24.dp, top = 40.dp, bottom = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(if (st.video) Icons.Filled.Videocam else Icons.Filled.Call, null, tint = NavMuted, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(tr(if (st.video) "Flikkchat video call" else "Flikkchat voice call"), fontSize = 13.sp, color = NavMuted, fontWeight = FontWeight.SemiBold)
+        }
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Box(Modifier.size(200.dp).border(2.dp, Color(0x2EC9BFFF), CircleShape), contentAlignment = Alignment.Center) {
+                Avatar(name, 150.dp)
+            }
+            Spacer(Modifier.height(22.dp))
+            Text(name, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            Spacer(Modifier.height(6.dp))
+            Text(tr("Ringing…"), fontSize = 16.sp, color = Color(0xFFC3C5D3))
+        }
+        Row(
+            Modifier.clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.1f)).clickable { showReplies = true }
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.AutoMirrored.Filled.Message, null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(tr("Reply with message"), color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        }
+        Spacer(Modifier.height(36.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            BigBtn(Icons.Filled.CallEnd, EndRed, tr("Decline")) { Calls.decline() }
+            BigBtn(if (st.video) Icons.Filled.Videocam else Icons.Filled.Call, Color(0xFF16A34A), tr("Accept"), onClick = onAccept)
+        }
+    }
+    if (showReplies) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showReplies = false },
+            title = { Text(tr("Reply with message")) },
+            text = {
+                Column {
+                    QuickReplies.forEach { r ->
+                        Text(tr(r), color = Ink, fontSize = 15.sp, modifier = Modifier.fillMaxWidth().clickable {
+                            showReplies = false
+                            Calls.declineWithMessage(tr(r))
+                        }.padding(vertical = 12.dp))
+                    }
+                }
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { showReplies = false }) { Text(tr("Cancel"), color = Muted) } },
+            containerColor = BubbleThem,
+        )
     }
 }

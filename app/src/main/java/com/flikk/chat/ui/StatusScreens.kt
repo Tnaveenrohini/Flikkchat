@@ -81,7 +81,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-val StatusColors = listOf(0xFF4B2FE0, 0xFF7C4DFF, 0xFF00897B, 0xFFEF6C00, 0xFF1E88E5, 0xFF43A047, 0xFF5D4037, 0xFF263238)
+val StatusColors = listOf(0xFF4B2FE0, 0xFF0F5E4A, 0xFF9D174D, 0xFF9A3412, 0xFF1E4E8C, 0xFF14161F)
 
 // ---------------- Text status ----------------
 
@@ -90,33 +90,48 @@ fun TextStatusScreen(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     var text by remember { mutableStateOf("") }
     var ci by remember { mutableIntStateOf(0) }
+    var font by remember { mutableIntStateOf(0) }
+    val fonts = listOf(Jakarta, androidx.compose.ui.text.font.FontFamily.Serif, androidx.compose.ui.text.font.FontFamily.Monospace)
     val bg = Color(StatusColors[ci])
-    Box(Modifier.fillMaxSize().background(bg).imePadding()) {
-        TextField(
-            value = text, onValueChange = { text = it.take(500) },
-            placeholder = { Text("Type a status", fontSize = 28.sp, color = Color.White.copy(alpha = 0.6f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 30.sp, color = Color.White, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold),
-            modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(24.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                cursorColor = Color.White,
-            ),
-        )
-        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp)) {
-            IconButton(onClick = onDone) { Icon(Icons.Filled.Close, "Close", tint = Color.White) }
+    Column(Modifier.fillMaxSize().background(bg).imePadding()) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onDone) { Icon(Icons.Filled.Close, tr("Close"), tint = Color.White) }
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = { ci = (ci + 1) % StatusColors.size }) { Icon(Icons.Filled.Palette, "Color", tint = Color.White) }
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f)).clickable { font = (font + 1) % fonts.size },
+                contentAlignment = Alignment.Center,
+            ) { Text("Aa", color = Color.White, fontWeight = FontWeight.Bold, fontFamily = fonts[font]) }
         }
-        if (text.isNotBlank()) {
-            FloatingActionButton(
-                onClick = {
-                    val t = text
-                    scope.launch { Chat.postTextStatus(t, StatusColors[ci]); onDone() }
-                },
-                containerColor = Color.White, contentColor = bg,
-                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(20.dp),
-            ) { Icon(Icons.AutoMirrored.Filled.Send, "Post") }
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            if (text.isEmpty()) Text(tr("Type a status"), fontSize = 30.sp, color = Color.White.copy(alpha = 0.6f), textAlign = TextAlign.Center, fontFamily = fonts[font])
+            androidx.compose.foundation.text.BasicTextField(
+                value = text, onValueChange = { text = it.take(500) },
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 30.sp, lineHeight = 38.sp, color = Color.White, textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.SemiBold, fontFamily = fonts[font]),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+                modifier = Modifier.fillMaxWidth().padding(28.dp),
+            )
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatusColors.forEachIndexed { i, c ->
+                Box(
+                    Modifier.size(30.dp).border(2.dp, if (i == ci) Color.White else Color.White.copy(alpha = 0.3f), CircleShape)
+                        .padding(3.dp).clip(CircleShape).background(Color(c)).clickable { ci = i },
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("Status (My contacts)"), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha = 0.2f)).padding(horizontal = 12.dp, vertical = 8.dp))
+            Spacer(Modifier.weight(1f))
+            Box(
+                Modifier.size(56.dp).clip(CircleShape).background(if (text.isBlank()) Color.White.copy(alpha = 0.4f) else Color.White)
+                    .clickable(enabled = text.isNotBlank()) {
+                        val t = text
+                        scope.launch { Chat.postTextStatus(t, StatusColors[ci]); onDone() }
+                    },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.AutoMirrored.Filled.Send, tr("Post"), tint = bg) }
         }
     }
 }

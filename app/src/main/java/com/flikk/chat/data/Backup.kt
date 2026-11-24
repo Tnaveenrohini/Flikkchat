@@ -15,10 +15,11 @@ import java.util.zip.ZipOutputStream
 object Backup {
     private const val DB_NAME = "flikkchat.db"
 
-    fun export(ctx: Context, uri: Uri): Result<Int> = runCatching {
+    fun export(ctx: Context, uri: Uri, includeVideos: Boolean = true): Result<Int> = runCatching {
         Chat.db.checkpoint()
         val dbFile = ctx.getDatabasePath(DB_NAME)
-        val media = Media.dir(ctx).listFiles()?.filter { it.isFile } ?: emptyList()
+        val videoExt = setOf("mp4", "3gp", "webm", "mkv")
+        val media = Media.dir(ctx).listFiles()?.filter { it.isFile && (includeVideos || it.extension.lowercase() !in videoExt) } ?: emptyList()
         ctx.contentResolver.openOutputStream(uri)?.use { os ->
             ZipOutputStream(os.buffered()).use { zip ->
                 zip.putNextEntry(ZipEntry("db/$DB_NAME"))
@@ -30,7 +31,9 @@ object Backup {
                     zip.closeEntry()
                 }
             }
-        } ?: error("File open avvaledu")
+        } ?: error("Could not open file")
+        Chat.lastBackupAt = System.currentTimeMillis()
+        Chat.lastBackupSize = dbFile.length() + media.sumOf { it.length() }
         media.size
     }
 
