@@ -1,5 +1,6 @@
 package com.flikk.chat.ui
 
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.luminance
 import android.content.Context
