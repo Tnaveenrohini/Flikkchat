@@ -20,8 +20,8 @@ android {
         applicationId = "com.flikk.chat"
         minSdk = 26
         targetSdk = 34
-        versionCode = 14
-        versionName = "0.16.0"
+        versionCode = 15
+        versionName = "0.18.0"
         // Phones ki matrame (APK size takkuva)
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
@@ -81,6 +81,11 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-video:2.7.0")
+
+    // 🗜️ Video / audio compress (send mundu)
+    implementation("androidx.media3:media3-transformer:1.4.1")
+    implementation("androidx.media3:media3-effect:1.4.1")
+    implementation("androidx.media3:media3-common:1.4.1")
 
     // 📞 Voice / video calls
     implementation("io.getstream:stream-webrtc-android:1.3.8")

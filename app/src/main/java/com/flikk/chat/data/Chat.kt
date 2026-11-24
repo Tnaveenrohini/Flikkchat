@@ -366,13 +366,40 @@ object Chat {
         } catch (e: Exception) { "Could not send contact" }
     }
 
+    /**
+     * Video ni compress chesi app folder lo pettu (WhatsApp laaga).
+     * Chinna video (4 MB lopu) ayite alage copy. null = compress ayina 16 MB kanna pedda.
+     */
+    suspend fun smallVideo(uri: Uri, id: String): Pair<File, String>? {
+        val size = Media.size(app, uri)
+        if (size in 1..(4L * 1024 * 1024)) return Media.prepareVideo(app, uri, id)
+        val out = File(Media.dir(app), "$id.mp4")
+        if (Compress.video(app, uri, out)) {
+            if (out.length() <= Media.MAX_VIDEO_BYTES) return out to "video/mp4"
+            out.delete()
+        }
+        return withContext(Dispatchers.IO) { Media.prepareVideo(app, uri, id) }
+    }
+
     suspend fun sendAudioFile(peer: String, uri: Uri, reply: Msg?): String? = withContext(Dispatchers.IO) {
         try {
-            if (Media.size(app, uri) > Media.MAX_VIDEO_BYTES) return@withContext "Audio must be smaller than 16 MB"
-            val mime = app.contentResolver.getType(uri) ?: "audio/mpeg"
-            val f = File(Media.dir(app), UUID.randomUUID().toString() + "." + (if (mime.contains("mpeg")) "mp3" else Media.ext(mime)))
-            app.contentResolver.openInputStream(uri)?.use { i -> f.outputStream().use { i.copyTo(it) } } ?: return@withContext "Could not open file"
-            send(peer, "", "audio", f.absolutePath, mime, Media.durationMs(f.absolutePath), reply)
+            val size = Media.size(app, uri)
+            var mime = app.contentResolver.getType(uri) ?: "audio/mpeg"
+            val id = UUID.randomUUID().toString()
+            var f: File? = null
+            // 1.5 MB kanna pedda audio → AAC lo compress
+            if (size < 0 || size > 1_500_000L) {
+                val out = File(Media.dir(app), "$id.m4a")
+                if (Compress.audio(app, uri, out) && (size < 0 || out.length() < size)) { f = out; mime = "audio/mp4" } else out.delete()
+            }
+            val file: File = f ?: run {
+                if (size > Media.MAX_VIDEO_BYTES) return@withContext "Audio must be smaller than 16 MB"
+                val dst = File(Media.dir(app), id + "." + (if (mime.contains("mpeg")) "mp3" else Media.ext(mime)))
+                app.contentResolver.openInputStream(uri)?.use { i -> dst.outputStream().use { o -> i.copyTo(o) } } ?: return@withContext "Could not open file"
+                dst
+            }
+            if (file.length() > Media.MAX_VIDEO_BYTES) { file.delete(); return@withContext "Audio must be smaller than 16 MB" }
+            send(peer, "", "audio", file.absolutePath, mime, Media.durationMs(file.absolutePath), reply)
             null
         } catch (e: Exception) { "Could not send audio" }
     }
@@ -840,8 +867,8 @@ object Chat {
             val id = UUID.randomUUID().toString()
             try {
                 if (isVideo) {
-                    val (f, mime) = Media.prepareVideo(app, uri, id)
-                        ?: return@withContext "Video must be smaller than 16 MB"
+                    val (f, mime) = smallVideo(uri, id)
+                        ?: return@withContext "Video is too long to send. Try a shorter video."
                     send(peer, caption, "video", f.absolutePath, mime, Media.durationMs(f.absolutePath), reply, viewOnce = viewOnce)
                 } else {
                     val f = Media.prepareImage(app, uri, id, hd)
@@ -947,7 +974,7 @@ object Chat {
         val uid = me ?: return@withContext "Not logged in"
         val id = UUID.randomUUID().toString()
         try {
-            val (f, mime) = Media.prepareVideo(app, uri, id) ?: return@withContext "Video must be smaller than 16 MB"
+            val (f, mime) = smallVideo(uri, id) ?: return@withContext "Video is too long to send. Try a shorter video."
             val st = StatusItem(id, uid, "video", caption.trim(), 0, f.absolutePath, System.currentTimeMillis(), true)
             db.insertStatus(st)
             shareStatus(st, mime)

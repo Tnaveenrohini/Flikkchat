@@ -345,6 +345,7 @@ fun SendPreviewScreen(peer: String, uri: Uri, isVideo: Boolean, onDone: () -> Un
                 else Icon(Icons.AutoMirrored.Filled.Send, tr("Send"), tint = Color.White)
             }
         }
+        if (busy && isVideo) Text(tr("Compressing video…"), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 24.dp, bottom = 4.dp))
         if (name.isNotEmpty()) Text("→ $name", color = NavMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 24.dp, bottom = 10.dp))
     }
 }

@@ -1,5 +1,11 @@
 package com.flikk.chat.ui
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
+import androidx.compose.material.icons.filled.Block
 import android.Manifest
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.offset
@@ -229,6 +235,7 @@ fun ChatScreen(
     val timer = remember(version) { Chat.timerOf(peer) }
     LaunchedEffect(peer) { withContext(Dispatchers.IO) { Chat.purgeExpired() } }
     val listState = rememberLazyListState()
+    val inputFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) listState.animateScrollToItem(0) }
     BackHandler(enabled = selected != null) { selected = null }
 
@@ -307,7 +314,11 @@ fun ChatScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
-    Column(Modifier.fillMaxSize().background(if (wall == 0L) ChatBg else Color(wall)).imePadding()) {
+    Column(
+        Modifier.fillMaxSize().background(if (wall == 0L) ChatBg else Color(wall))
+            .doodles(if (palette.dark || (wall != 0L && Color(wall).luminance() < 0.4f)) Color.White.copy(alpha = 0.055f) else Color.Black.copy(alpha = 0.06f))
+            .imePadding()
+    ) {
         val sel = selected
         if (sel != null) {
             SelectionBar(
@@ -371,8 +382,10 @@ fun ChatScreen(
         }
 
         val reversed = remember(msgs) { msgs.asReversed() }
+        val showDown by remember { derivedStateOf { listState.firstVisibleItemIndex > 3 } }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
         LazyColumn(
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 14.dp),
+            Modifier.fillMaxSize().padding(horizontal = 8.dp),
             state = listState,
             reverseLayout = true,
         ) {
@@ -381,9 +394,12 @@ fun ChatScreen(
                 val older = reversed.getOrNull(i + 1)
                 Column {
                     if (older == null || dayLabel(older.ts) != dayLabel(m.ts)) DayChip(dayLabel(m.ts))
+                    val newDay = older == null || dayLabel(older.ts) != dayLabel(m.ts)
+                    val tail = newDay || older!!.type == "sys" || older.fromMe != m.fromMe || (!m.fromMe && older.sender != m.sender)
                     if (m.type == "sys") SysChip(m.text)
                     else Bubble(
-                        m = m, bubbleColor = bubbleColor, fontSz = fontSz,
+                        m = m, bubbleColor = bubbleColor, fontSz = fontSz, tail = tail,
+                        onForward = { openForward(m.id) },
                         showSender = group && !m.fromMe && (older == null || older.sender != m.sender || older.type == "sys"),
                         selected = selected?.id == m.id,
                         onLongPress = { if (!m.deleted) actionsFor = m },
@@ -391,6 +407,7 @@ fun ChatScreen(
                             when {
                                 m.viewOnce && !m.fromMe && m.media.isNotEmpty() -> openViewOnce(ctx, m, openImage)
                                 m.type == "image" || m.type == "video" -> if (m.media.isNotEmpty() && !m.deleted && !m.viewOnce) openMediaViewer(peer, m.id)
+                                m.type == "call" && !group -> caller(peer, m.mime.startsWith("video"))
                                 else -> {}
                             }
                         },
@@ -415,6 +432,14 @@ fun ChatScreen(
                     }
                 }
             }
+        }
+        if (showDown) {
+            Box(
+                Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 10.dp).size(46.dp).shadow(3.dp, CircleShape)
+                    .clip(CircleShape).background(BubbleThem).clickable { scope.launch { listState.animateScrollToItem(0) } },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Filled.KeyboardDoubleArrowDown, tr("Scroll to bottom"), tint = Muted, modifier = Modifier.size(26.dp)) }
+        }
         }
 
         if (blocked) {
@@ -454,12 +479,12 @@ fun ChatScreen(
         }
 
         Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 14.dp),
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 8.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             Row(
-                Modifier.weight(1f).heightIn(min = 50.dp).shadow(2.dp, RoundedCornerShape(25.dp))
-                    .clip(RoundedCornerShape(25.dp)).background(Bg).padding(horizontal = 6.dp),
+                Modifier.weight(1f).heightIn(min = 52.dp)
+                    .clip(RoundedCornerShape(26.dp)).background(if (palette.dark) Surface else Bg).padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (recording) {
@@ -470,15 +495,18 @@ fun ChatScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(tr("Recording..."), color = Muted, fontSize = 13.sp)
                 } else {
-                    Box(Modifier.weight(1f).padding(start = 12.dp, top = 12.dp, bottom = 12.dp)) {
-                        if (text.isEmpty()) Text(tr("Message"), color = Muted, fontSize = 15.sp)
+                    IconButton(onClick = { inputFocus.requestFocus() }, modifier = Modifier.size(44.dp)) {
+                        Icon(Icons.Outlined.EmojiEmotions, tr("Emoji"), tint = Muted, modifier = Modifier.size(24.dp))
+                    }
+                    Box(Modifier.weight(1f).padding(start = 2.dp, top = 13.dp, bottom = 13.dp)) {
+                        if (text.isEmpty()) Text(tr("Message"), color = Muted, fontSize = 16.sp)
                         BasicTextField(
                             value = text,
                             onValueChange = { text = it; if (it.isNotEmpty()) Chat.typing(peer) },
-                            textStyle = TextStyle(fontSize = 15.sp, color = Ink, fontFamily = Jakarta),
+                            textStyle = TextStyle(fontSize = 16.sp, color = Ink, fontFamily = Jakarta),
                             cursorBrush = SolidColor(Accent),
                             maxLines = 5,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().focusRequester(inputFocus),
                         )
                     }
                     IconButton(onClick = { showAttach = true }, modifier = Modifier.size(40.dp, 44.dp)) {
@@ -489,10 +517,10 @@ fun ChatScreen(
                     }
                 }
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(6.dp))
             val canSend = text.isNotBlank() || recording
             Box(
-                Modifier.size(50.dp).clip(CircleShape).background(Accent).clickable {
+                Modifier.size(52.dp).clip(CircleShape).background(Accent).clickable {
                     when {
                         recording -> stopRec(true)
                         text.isNotBlank() -> { Chat.send(peer, text, reply = replyTo); text = ""; replyTo = null }
@@ -688,30 +716,37 @@ private fun SysChip(text: String) {
 private fun Bubble(
     m: Msg, showSender: Boolean, selected: Boolean, onLongPress: () -> Unit, onClick: () -> Unit,
     bubbleColor: Color = BubbleMine, fontSz: Int = 1, onVote: (Int) -> Unit = {}, onReactionsClick: () -> Unit = {},
+    tail: Boolean = true, onForward: (() -> Unit)? = null,
 ) {
     val mine = m.fromMe
-    val shape = RoundedCornerShape(
-        topStart = 20.dp, topEnd = 20.dp,
-        bottomStart = if (mine) 20.dp else 6.dp,
-        bottomEnd = if (mine) 6.dp else 20.dp,
-    )
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val shape = remember(mine, tail, density) {
+        with(density) { BubbleShape(mine, tail, 10.dp.toPx(), TAIL.toPx()) }
+    }
     val ink = if (mine) Color.White else Ink
-    val sub = if (mine) OnAccentMuted else Muted
+    val sub = if (mine) Color.White.copy(alpha = 0.72f) else Muted
     val reactions = remember(m.reactions) { jsonMap(m.reactions) }
+    val link = remember(m.text, m.type) { if (m.type == "text" && !m.deleted) com.flikk.chat.data.LinkMeta.firstUrl(m.text) else null }
+    val showFwd = onForward != null && !m.deleted && !m.viewOnce && (m.type == "image" || m.type == "video" || link != null)
     Column(
         Modifier.fillMaxWidth()
             .background(if (selected) Accent.copy(alpha = 0.12f) else Color.Transparent)
-            .padding(vertical = 3.dp),
+            .padding(top = if (tail) 5.dp else 1.dp, bottom = 1.dp),
         horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
     ) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        if (showFwd && mine) {
+            ForwardShortcut(onForward!!)
+            Spacer(Modifier.width(6.dp))
+        }
         Column(
             Modifier
-                .widthIn(max = 280.dp)
-                .then(if (mine) Modifier else Modifier.shadow(1.dp, shape))
+                .widthIn(max = 300.dp)
                 .clip(shape)
                 .background(if (mine) bubbleColor else BubbleThem)
                 .combinedClickable(onClick = onClick, onLongClick = onLongPress)
-                .padding(6.dp),
+                .padding(start = if (mine) 0.dp else TAIL, end = if (mine) TAIL else 0.dp)
+                .padding(4.dp),
         ) {
             if (showSender) {
                 val sn = Chat.nameOf(m.sender)
@@ -738,10 +773,12 @@ private fun Bubble(
 
             val poll = if (!m.deleted) pollOf(m) else null
             when {
-                m.deleted -> Text(
-                    "🚫 " + tr("This message was deleted"), color = sub, fontStyle = FontStyle.Italic, fontSize = 14.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                )
+                m.deleted -> Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Block, null, tint = sub, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(tr("This message was deleted"), color = sub, fontStyle = FontStyle.Italic, fontSize = fontSp(fontSz))
+                }
+                m.type == "call" -> CallContent(m, ink, sub)
                 m.viewOnce && (m.type == "image" || m.type == "video") -> Row(
                     Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -763,19 +800,35 @@ private fun Bubble(
                 m.type == "video" -> MediaThumb(m, isVideo = true)
                 m.type == "audio" -> AudioRow(m)
             }
-            if (!m.deleted && m.text.isNotEmpty() && m.type != "poll" && !(m.viewOnce && m.media.isEmpty() && !mine)) {
-                Text(m.text, fontSize = fontSp(fontSz), lineHeight = (fontSp(fontSz).value + 6).sp, color = ink,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            if (link != null) Box(Modifier.padding(horizontal = 2.dp, vertical = 2.dp)) { LinkCard(link, mine) }
+            val showText = !m.deleted && m.text.isNotEmpty() && m.type != "poll" && m.type != "call" && !(m.viewOnce && m.media.isEmpty() && !mine)
+            val meta: @Composable () -> Unit = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (m.starred) { Icon(Icons.Filled.Star, null, tint = sub, modifier = Modifier.size(12.dp)); Spacer(Modifier.width(3.dp)) }
+                    Text(clockAmPm(m.ts), fontSize = 11.5.sp, color = sub)
+                    if (mine && !m.deleted && m.type != "call") { Spacer(Modifier.width(4.dp)); Ticks(m.status, 16.dp, onAccent = true) }
+                }
             }
-            Row(
-                Modifier.align(Alignment.End).padding(horizontal = 8.dp).padding(bottom = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (m.starred) { Icon(Icons.Filled.Star, null, tint = sub, modifier = Modifier.size(12.dp)); Spacer(Modifier.width(3.dp)) }
-                Text(clock(m.ts), fontSize = 11.sp, color = sub)
-                if (mine && !m.deleted) { Spacer(Modifier.width(4.dp)); Ticks(m.status, 16.dp, onAccent = true) }
+            val short = showText && m.text.length <= 26 && !m.text.contains('\n') && m.type == "text" && link == null
+            if (short) {
+                Row(Modifier.padding(start = 8.dp, end = 6.dp, top = 3.dp, bottom = 2.dp), verticalAlignment = Alignment.Bottom) {
+                    Text(m.text, fontSize = fontSp(fontSz), lineHeight = (fontSp(fontSz).value + 6).sp, color = ink)
+                    Spacer(Modifier.width(10.dp))
+                    Box(Modifier.padding(bottom = 1.dp)) { meta() }
+                }
+            } else {
+                if (showText) {
+                    Text(m.text, fontSize = fontSp(fontSz), lineHeight = (fontSp(fontSz).value + 6).sp, color = ink,
+                        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp))
+                }
+                Box(Modifier.align(Alignment.End).padding(horizontal = 6.dp).padding(bottom = 2.dp, top = 2.dp)) { meta() }
             }
         }
+        if (showFwd && !mine) {
+            Spacer(Modifier.width(6.dp))
+            ForwardShortcut(onForward!!)
+        }
+      }
         if (reactions.isNotEmpty()) {
             val counts = reactions.values.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
             Row(
@@ -789,6 +842,14 @@ private fun Bubble(
             }
         }
     }
+}
+
+@Composable
+private fun ForwardShortcut(onClick: () -> Unit) {
+    Box(
+        Modifier.size(38.dp).clip(CircleShape).background(Color.Black.copy(alpha = if (palette.dark) 0.35f else 0.12f)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(Icons.AutoMirrored.Filled.Shortcut, tr("Forward"), tint = if (palette.dark) Color.White else Ink, modifier = Modifier.size(20.dp)) }
 }
 
 @Composable

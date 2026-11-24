@@ -90,6 +90,7 @@ sealed class Screen {
     data class Viewer(val path: String) : Screen()
     data object StatusText : Screen()
     data object AddStatus : Screen()
+    data class ShareTo(val uri: android.net.Uri?, val mime: String, val text: String) : Screen()
     data object VoiceStatus : Screen()
     data class StatusPreview(val uri: android.net.Uri, val video: Boolean) : Screen()
     data class StatusView(val owner: String) : Screen()
@@ -239,6 +240,16 @@ class MainActivity : FragmentActivity() {
                     is Screen.Forward -> ForwardScreen(msgId = current.msgId, onDone = ::pop)
                     is Screen.Viewer -> ImageViewer(path = current.path, onBack = ::pop)
                     Screen.StatusText -> TextStatusScreen(onDone = { stack = stack.filter { it != Screen.AddStatus && it != Screen.StatusText }.ifEmpty { listOf(Screen.Home) } })
+                    is Screen.ShareTo -> com.flikk.chat.ui.ShareToScreen(
+                        current.uri, current.mime, current.text, onBack = ::pop,
+                        onPicked = { peer ->
+                            val u = current.uri
+                            val m = current.mime
+                            if (u != null && (m.startsWith("image") || m.startsWith("video")))
+                                stack = listOf(Screen.Home, Screen.Conversation(peer), Screen.SendPreview(peer, u, m.startsWith("video")))
+                            else stack = listOf(Screen.Home, Screen.Conversation(peer))
+                        },
+                    )
                     Screen.AddStatus -> AddStatusScreen(
                         onClose = ::pop,
                         openText = { replaceTop(Screen.StatusText) },
@@ -322,6 +333,15 @@ class MainActivity : FragmentActivity() {
 
     /** Notification click → aa chat open */
     private fun handleIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND && Chat.loggedIn) {
+            val mime = intent.type ?: ""
+            @Suppress("DEPRECATION")
+            val uri: android.net.Uri? = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java)
+                else intent.getParcelableExtra(Intent.EXTRA_STREAM)
+            val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""
+            if (uri != null || text.isNotBlank()) stack = listOf(Screen.Home, Screen.ShareTo(uri, mime, text))
+            return
+        }
         val peer = intent?.getStringExtra(EXTRA_PEER) ?: return
         if (Chat.loggedIn) stack = listOf(Screen.Home, Screen.Conversation(peer))
     }

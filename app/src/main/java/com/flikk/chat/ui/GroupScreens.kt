@@ -501,3 +501,65 @@ fun ImageViewer(path: String, onBack: () -> Unit) {
         }
     }
 }
+
+// ---------------- Share from other apps ----------------
+
+/** Gallery / Files nunchi share → evariki pampali? */
+@Composable
+fun ShareToScreen(uri: android.net.Uri?, mime: String, text: String, onBack: () -> Unit, onPicked: (String) -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var q by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    val targets by produceState(initialValue = emptyList<Target>()) {
+        value = withContext(Dispatchers.IO) {
+            val chats = Chat.db.chats()
+                .filter { !it.peer.startsWith("g:") || (Chat.db.group(it.peer.removePrefix("g:"))?.members?.contains(Chat.me) == true) }
+                .map { Target(it.peer, it.name, if (it.peer.startsWith("g:")) tr("Group") else it.phone) }
+            val seen = chats.map { it.peer }.toSet()
+            chats + Chat.db.people().filter { it.uid !in seen }.map { Target(it.uid, it.name, it.phone) }
+        }
+    }
+    val shown = targets.filter { q.isBlank() || it.name.contains(q.trim(), true) }
+    Box(Modifier.fillMaxSize().background(Bg)) {
+        LazyColumn(Modifier.fillMaxSize()) {
+            item {
+                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 16.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp)) }
+                    Text(tr("Send to…"), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                }
+                Box(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 6.dp)) { SearchPill(q, { q = it }, tr("Search")) }
+                if (busy) Text(tr("Compressing and sending…"), color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+                SectionLabel(tr("Recent chats"))
+            }
+            items(shown, key = { it.peer }) { t ->
+                Row(
+                    Modifier.fillMaxWidth().clickable(enabled = !busy) {
+                        when {
+                            uri != null && mime.startsWith("audio") -> {
+                                busy = true
+                                scope.launch {
+                                    val err = Chat.sendAudioFile(t.peer, uri, null)
+                                    busy = false
+                                    if (err != null) android.widget.Toast.makeText(ctx, tr(err), android.widget.Toast.LENGTH_LONG).show()
+                                    onPicked(t.peer)
+                                }
+                            }
+                            uri == null -> { Chat.send(t.peer, text); onPicked(t.peer) }
+                            else -> onPicked(t.peer)
+                        }
+                    }.padding(horizontal = 20.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Avatar(t.name, 48.dp)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(t.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)
+                        if (t.sub.isNotEmpty()) Text(t.sub, color = Muted, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+    }
+}

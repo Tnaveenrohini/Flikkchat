@@ -92,6 +92,13 @@ fun jsonMap(s: String): Map<String, String> = if (s.isBlank()) emptyMap() else t
     j.keys().asSequence().associateWith { j.getString(it) }
 } catch (_: Exception) { emptyMap() }
 
+/** "Voice call", "Missed video call" ... (call entries in chat) */
+fun callTitle(m: Msg): String {
+    val video = m.mime.startsWith("video")
+    return if (m.mime.endsWith("|missed")) (if (video) "Missed video call" else "Missed voice call")
+    else (if (video) "Video call" else "Voice call")
+}
+
 fun preview(m: Msg): String = when {
     m.deleted -> "🚫 This message was deleted"
     m.type == "poll" -> "📊 " + (pollOf(m)?.q ?: "Poll")
@@ -100,6 +107,7 @@ fun preview(m: Msg): String = when {
     m.type == "image" -> "📷 Photo" + if (m.text.isNotBlank()) " · ${m.text}" else ""
     m.type == "video" -> "🎥 Video" + if (m.text.isNotBlank()) " · ${m.text}" else ""
     m.type == "audio" -> "🎤 Voice message"
+    m.type == "call" -> callTitle(m)
     else -> m.text
 }
 
@@ -314,7 +322,7 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 5) {
         return rows.mapNotNull { r ->
             val m = msg(r[3]) ?: return@mapNotNull null
             val who = if (isGroup(m.peer) && !m.fromMe && m.type != "sys") (peer(m.sender)?.name?.let { "$it: " } ?: "") else ""
-            ChatRow(r[0], r[1], r[2], who + preview(m), m.ts, m.fromMe && m.type != "sys", m.status, r[4].toInt())
+            ChatRow(r[0], r[1], r[2], who + (if (m.type == "call") "📞 " + preview(m) else preview(m)), m.ts, m.fromMe && m.type != "sys" && m.type != "call", m.status, r[4].toInt())
         }
     }
 
@@ -331,7 +339,7 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 5) {
         val both = HashMap<String, HashSet<Long>>()
         readableDatabase.rawQuery(
             "SELECT peer, (ts + $off) / $day AS d, MAX(from_me), MIN(from_me) FROM messages " +
-                "WHERE peer NOT LIKE 'g:%' AND type != 'sys' AND ts > $since GROUP BY peer, d", null
+                "WHERE peer NOT LIKE 'g:%' AND type NOT IN ('sys','call') AND ts > $since GROUP BY peer, d", null
         ).use { c ->
             while (c.moveToNext()) {
                 if (c.getInt(2) == 1 && c.getInt(3) == 0) both.getOrPut(c.getString(0)) { HashSet() }.add(c.getLong(1))
@@ -464,6 +472,19 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 5) {
             put("video", if (c.video) 1 else 0); put("ts", c.ts); put("dur", c.dur); put("missed", if (c.missed) 1 else 0)
         }
         writableDatabase.insertWithOnConflict("calllog", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        // Chat lo kuda "Voice call · 5 mins" laaga chupinchu (phone lo matrame, evariki pampadu)
+        if (c.peer.isNotEmpty()) {
+            val kind = (if (c.video) "video" else "voice") + when {
+                c.missed -> "|missed"
+                c.dur <= 0 && c.outgoing -> "|noanswer"
+                c.dur <= 0 -> "|declined"
+                else -> ""
+            }
+            insertMsg(
+                Msg("call_" + c.id, c.peer, c.outgoing, "", c.ts, 3, if (c.outgoing) "" else c.peer, "call", "", kind, c.dur),
+                readByMe = !(c.missed && !c.outgoing),
+            )
+        }
         bump()
     }
 

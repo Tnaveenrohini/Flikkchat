@@ -456,6 +456,17 @@ private fun te(): Map<String, String> = hashMapOf(
     "Sky Blue" to "స్కై బ్లూ",
     "Violet" to "వయొలెట్",
     "Mango" to "మామిడి",
+    "Tap to call back" to "తిరిగి కాల్ చేయడానికి నొక్కండి",
+    "{0} mins" to "{0} నిమిషాలు",
+    "{0} secs" to "{0} సెకన్లు",
+    "Missed voice call" to "మిస్డ్ వాయిస్ కాల్",
+    "Missed video call" to "మిస్డ్ వీడియో కాల్",
+    "Scroll to bottom" to "కిందికి వెళ్ళు",
+    "Emoji" to "ఎమోజీ",
+    "Send to…" to "ఎవరికి పంపాలి…",
+    "Compressing and sending…" to "చిన్నది చేసి పంపుతోంది…",
+    "Compressing video…" to "వీడియో చిన్నది చేస్తోంది…",
+    "Video is too long to send. Try a shorter video." to "వీడియో చాలా పెద్దది. చిన్న వీడియో ప్రయత్నించండి.",
 )
 
 private fun ta(): Map<String, String> = hashMapOf(
@@ -907,6 +918,17 @@ private fun ta(): Map<String, String> = hashMapOf(
     "Sky Blue" to "வான நீலம்",
     "Violet" to "ஊதா",
     "Mango" to "மாம்பழம்",
+    "Tap to call back" to "திரும்ப அழைக்க தட்டவும்",
+    "{0} mins" to "{0} நிமிடங்கள்",
+    "{0} secs" to "{0} விநாடிகள்",
+    "Missed voice call" to "தவறிய குரல் அழைப்பு",
+    "Missed video call" to "தவறிய வீடியோ அழைப்பு",
+    "Scroll to bottom" to "கீழே செல்",
+    "Emoji" to "எமோஜி",
+    "Send to…" to "யாருக்கு அனுப்ப…",
+    "Compressing and sending…" to "சுருக்கி அனுப்புகிறது…",
+    "Compressing video…" to "வீடியோ சுருக்கப்படுகிறது…",
+    "Video is too long to send. Try a shorter video." to "வீடியோ மிக நீளமானது. சிறிய வீடியோவை முயற்சிக்கவும்.",
 )
 
 private fun hi(): Map<String, String> = hashMapOf(
@@ -1358,4 +1380,15 @@ private fun hi(): Map<String, String> = hashMapOf(
     "Sky Blue" to "आसमानी नीला",
     "Violet" to "बैंगनी",
     "Mango" to "आम",
+    "Tap to call back" to "वापस कॉल करने के लिए दबाएं",
+    "{0} mins" to "{0} मिनट",
+    "{0} secs" to "{0} सेकंड",
+    "Missed voice call" to "छूटी वॉइस कॉल",
+    "Missed video call" to "छूटी वीडियो कॉल",
+    "Scroll to bottom" to "नीचे जाएं",
+    "Emoji" to "इमोजी",
+    "Send to…" to "किसे भेजें…",
+    "Compressing and sending…" to "छोटा करके भेज रहे हैं…",
+    "Compressing video…" to "वीडियो छोटा हो रहा है…",
+    "Video is too long to send. Try a shorter video." to "वीडियो बहुत लंबा है। छोटा वीडियो आज़माएं।",
 )
