@@ -1,5 +1,7 @@
 package com.flikk.chat.ui
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -58,7 +60,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun PillButton(
     text: String, modifier: Modifier = Modifier, enabled: Boolean = true, busy: Boolean = false,
-    bg: Color = Accent, fg: Color = Color.White, onClick: () -> Unit,
+    bg: Color = Accent, fg: Color = OnAccent, onClick: () -> Unit,
 ) {
     Box(
         modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp))
@@ -270,5 +272,142 @@ fun ProfileSetupScreen(phone: String, onBack: () -> Unit, onDone: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+// ---------------- OTP (real SMS) ----------------
+
+/** SMS lo vachina 6-digit code. Auto-read ayite automatic ga verify. */
+@Composable
+fun OtpScreen(phone: String, onBack: () -> Unit, onVerified: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val activity = remember(ctx) {
+        var c = ctx
+        while (c is android.content.ContextWrapper && c !is android.app.Activity) c = c.baseContext
+        c as? android.app.Activity
+    }
+    val scope = rememberCoroutineScope()
+    var code by rememberSaveable { mutableStateOf("") }
+    var verId by rememberSaveable { mutableStateOf<String?>(null) }
+    var token by remember { mutableStateOf<com.google.firebase.auth.PhoneAuthProvider.ForceResendingToken?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var sending by remember { mutableStateOf(true) }
+    var wait by remember { mutableIntStateOf(60) }
+
+    fun finish(cred: com.google.firebase.auth.PhoneAuthCredential) {
+        if (busy) return
+        busy = true; error = null
+        scope.launch {
+            val err = Chat.verifyOtp(cred)
+            busy = false
+            if (err == null) onVerified() else error = tr(err)
+        }
+    }
+    val listener = remember {
+        object : Chat.OtpListener {
+            override fun onCodeSent(verificationId: String, t: com.google.firebase.auth.PhoneAuthProvider.ForceResendingToken) {
+                verId = verificationId; token = t; sending = false; wait = 60
+            }
+            override fun onAutoVerified(cred: com.google.firebase.auth.PhoneAuthCredential) {
+                sending = false
+                cred.smsCode?.let { code = it }
+                finish(cred)
+            }
+            override fun onFailed(message: String) { sending = false; error = tr(message) }
+        }
+    }
+    fun send(resend: Boolean) {
+        val a = activity ?: return
+        sending = true; error = null
+        Chat.sendOtp(a, phone, if (resend) token else null, listener)
+    }
+    LaunchedEffect(Unit) { if (verId == null) send(false) }
+    LaunchedEffect(sending, verId) {
+        while (wait > 0 && verId != null) { kotlinx.coroutines.delay(1000); wait-- }
+    }
+
+    Column(
+        Modifier.fillMaxSize().background(Bg).statusBarsPadding().navigationBarsPadding().imePadding()
+            .padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 34.dp),
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.offset(x = (-10).dp)) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.height(22.dp))
+        Text(tr("Enter the 6-digit code"), fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.8).sp, color = Ink)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            if (sending) tr("Sending SMS to {0}…", phone) else tr("We sent an SMS with a code to {0}", phone),
+            fontSize = 15.sp, lineHeight = 22.sp, color = Muted,
+        )
+        Spacer(Modifier.height(30.dp))
+        // 6 boxes (okate hidden text field)
+        Box {
+            androidx.compose.foundation.text.BasicTextField(
+                value = code,
+                onValueChange = { v ->
+                    val d = v.filter { it.isDigit() }.take(6)
+                    code = d; error = null
+                    val id = verId
+                    if (d.length == 6 && id != null) finish(Chat.otpCredential(id, d))
+                },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Transparent),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent),
+                modifier = Modifier.fillMaxWidth().height(60.dp),
+                decorationBox = { inner ->
+                    Box {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            repeat(6) { i ->
+                                val ch = code.getOrNull(i)?.toString() ?: ""
+                                val active = i == code.length
+                                Box(
+                                    Modifier.weight(1f).height(60.dp).clip(RoundedCornerShape(14.dp)).background(Surface)
+                                        .border(2.dp, if (active) Accent else Line, RoundedCornerShape(14.dp)),
+                                    contentAlignment = Alignment.Center,
+                                ) { Text(ch, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Ink) }
+                            }
+                        }
+                        Box(Modifier.size(1.dp)) { inner() }
+                    }
+                },
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        error?.let { Text(it, color = Danger, fontSize = 14.sp, lineHeight = 20.sp) }
+        Spacer(Modifier.height(10.dp))
+        if (!sending) {
+            if (wait > 0) Text(tr("Resend code in {0}s", wait), color = Muted, fontSize = 14.sp)
+            else Text(tr("Resend code"), color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { code = ""; send(true) }.padding(vertical = 6.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        PillButton(tr("Verify"), enabled = code.length == 6 && verId != null && !busy, busy = busy || sending) {
+            verId?.let { finish(Chat.otpCredential(it, code)) }
+        }
+    }
+}
+
+/** Paata users (OTP lekunda login ayinavallu) — okkasari number verify cheyyali */
+@Composable
+fun VerifyNumberGate(onVerify: (String) -> Unit) {
+    val phone = Chat.myPhone
+    Column(
+        Modifier.fillMaxSize().background(Bg).statusBarsPadding().navigationBarsPadding()
+            .padding(start = 24.dp, end = 24.dp, top = 60.dp, bottom = 34.dp),
+    ) {
+        Text(tr("Verify your number"), fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            tr("Double Bubble now checks every number with an SMS code. This keeps your account safe. Your chats stay as they are."),
+            fontSize = 15.sp, lineHeight = 22.sp, color = Muted,
+        )
+        Spacer(Modifier.height(24.dp))
+        Text(phone, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.weight(1f))
+        PillButton(tr("Send code"), enabled = phone.isNotEmpty()) { onVerify(phone) }
     }
 }

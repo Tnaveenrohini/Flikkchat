@@ -1,5 +1,15 @@
 package com.flikk.chat.data
 
+import java.util.concurrent.TimeUnit
+import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.auth.PhoneAuthOptions
+import com.google.firebase.auth.PhoneAuthCredential
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.FirebaseTooManyRequestsException
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.FirebaseException
+import android.app.Activity
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Application
@@ -106,6 +116,77 @@ object Chat {
     val loggedIn: Boolean get() = me != null && prefs.getBoolean("registered", false)
     val myName: String get() = prefs.getString("name", "") ?: ""
     val myPhone: String get() = prefs.getString("phone", "") ?: ""
+    /** Firebase lo phone number OTP tho verify ayyinda? */
+    val phoneVerified: Boolean get() = !auth.currentUser?.phoneNumber.isNullOrEmpty()
+
+    // ---------- 📱 Real OTP (Firebase Phone Auth) ----------
+
+    interface OtpListener {
+        fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken)
+        fun onAutoVerified(cred: PhoneAuthCredential)
+        fun onFailed(message: String)
+    }
+
+    private fun otpError(e: Exception): String {
+        val m = (e.message ?: "") + " " + e.javaClass.simpleName
+        return when {
+            m.contains("BILLING_NOT_ENABLED", true) -> "SMS OTP needs the Firebase Blaze plan"
+            m.contains("not authorized", true) || m.contains("app-not-authorized", true) || m.contains("Play Integrity", true) ->
+                "Add the app's SHA-1 and SHA-256 in Firebase project settings"
+            m.contains("OPERATION_NOT_ALLOWED", true) || m.contains("disabled", true) -> "Enable Authentication → Phone in Firebase"
+            e is FirebaseTooManyRequestsException || m.contains("quota", true) || m.contains("TOO_MANY", true) -> "Too many tries. Please try again later."
+            e is FirebaseAuthInvalidCredentialsException && m.contains("phone", true) -> "Enter a valid phone number"
+            e is FirebaseAuthInvalidCredentialsException -> "Wrong code. Check the SMS and try again."
+            e is FirebaseNetworkException -> "Network problem. Try again."
+            else -> "OTP error: " + (e.message ?: "unknown")
+        }
+    }
+
+    fun sendOtp(activity: Activity, phone: String, resend: PhoneAuthProvider.ForceResendingToken?, l: OtpListener) {
+        val b = PhoneAuthOptions.newBuilder(auth)
+            .setPhoneNumber(phone)
+            .setTimeout(60L, TimeUnit.SECONDS)
+            .setActivity(activity)
+            .setCallbacks(object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+                override fun onVerificationCompleted(credential: PhoneAuthCredential) = l.onAutoVerified(credential)
+                override fun onVerificationFailed(e: FirebaseException) = l.onFailed(otpError(e))
+                override fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken) = l.onCodeSent(verificationId, token)
+            })
+        if (resend != null) b.setForceResendingToken(resend)
+        try { PhoneAuthProvider.verifyPhoneNumber(b.build()) } catch (e: Exception) { l.onFailed(otpError(e)) }
+    }
+
+    fun otpCredential(verificationId: String, code: String): PhoneAuthCredential = PhoneAuthProvider.getCredential(verificationId, code)
+
+    /**
+     * OTP correct ayite login. Paata (anonymous) account unte daaniki phone link chestam — uid maaradu, chats alage untayi.
+     * null = success.
+     */
+    suspend fun verifyOtp(cred: PhoneAuthCredential): String? = withContext(Dispatchers.IO) {
+        try {
+            withTimeout(30_000) {
+                val cur = auth.currentUser
+                when {
+                    cur == null -> auth.signInWithCredential(cred).await()
+                    cur.phoneNumber.isNullOrEmpty() -> try {
+                        cur.linkWithCredential(cred).await()
+                    } catch (e: FirebaseAuthUserCollisionException) {
+                        val c2 = e.updatedCredential ?: throw e
+                        auth.signInWithCredential(c2).await()
+                    }
+                    else -> auth.signInWithCredential(cred).await()
+                }
+                // Kotha token (phone_number tho) — Firestore rules ki kavali
+                auth.currentUser?.getIdToken(true)?.await()
+            }
+            if (prefs.getBoolean("registered", false)) restart()
+            null
+        } catch (e: TimeoutCancellationException) {
+            "Internet is slow, please try again"
+        } catch (e: Exception) {
+            otpError(e)
+        }
+    }
     val myAbout: String get() = prefs.getString("about", "") ?: ""
 
     fun init(application: Application) {
@@ -143,20 +224,14 @@ object Chat {
 
     /** null = success, lekapothe error message */
     suspend fun register(name: String, rawPhone: String, pin: String? = null): String? = withContext(Dispatchers.IO) {
-        val phone = normalize(rawPhone) ?: return@withContext "Enter a valid phone number"
         if (name.isBlank()) return@withContext "Enter your name"
         try {
-            val user = auth.currentUser ?: try {
-                withTimeout(20_000) { auth.signInAnonymously().await().user }
-            } catch (e: TimeoutCancellationException) {
-                return@withContext "Internet is slow, please try again"
-            } catch (e: Exception) {
-                val m = e.message ?: ""
-                return@withContext if (m.contains("ADMIN_ONLY", true) || m.contains("disabled", true) || m.contains("CONFIGURATION_NOT_FOUND", true))
-                    "Enable Authentication → Anonymous in Firebase"
-                else "Login error: $m"
-            }
-            val uid = user?.uid ?: return@withContext "Login failed, please try again"
+            // OTP tho verify ayina user matrame
+            val user = auth.currentUser
+            val verified = user?.phoneNumber
+            if (user == null || verified.isNullOrEmpty()) return@withContext "Verify your phone number first"
+            val phone = normalize(verified) ?: normalize(rawPhone) ?: return@withContext "Enter a valid phone number"
+            val uid = user.uid
             if (!pinOkFor(phone, uid, pin)) return@withContext if (pin == null) PIN_REQUIRED else "Wrong PIN"
             // Firestore database lekapothe write eppatiki complete avvadu — timeout pettam
             val ok = withTimeoutOrNull(20_000) {
@@ -203,8 +278,18 @@ object Chat {
     // ---------- Sync engine ----------
 
     @Synchronized
+    /** Listeners malli start (OTP verify ayyaka kotha token tho) */
+    @Synchronized
+    fun restart() {
+        regs.forEach { try { it.remove() } catch (_: Exception) {} }
+        regs.clear()
+        started = false
+        start()
+    }
+
     fun start() {
         if (started || !ready) return
+        if (!phoneVerified) return
         val uid = me ?: return
         started = true
 
@@ -567,7 +652,8 @@ object Chat {
     /** Ee number ki vere account lo PIN unte, adi check */
     private suspend fun pinOkFor(phone: String, uid: String, pin: String?): Boolean {
         val owner = try { fs.collection("phones").document(phone).get().await().getString("uid") } catch (_: Exception) { null }
-        if (owner == null || owner == uid) return true
+        if (owner == null) return true
+        // OTP tho same account ki vachina (kotha phone / reinstall) — PIN unte adagali
         val hash = try { fs.collection("users").document(owner).get().await().getString("pin") } catch (_: Exception) { null }
         if (hash.isNullOrEmpty()) return true
         return pin != null && pinHash(phone, pin) == hash

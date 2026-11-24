@@ -72,6 +72,8 @@ sealed class Screen {
     data object Welcome : Screen()
     data object Login : Screen()
     data class ProfileSetup(val phone: String) : Screen()
+    data class Otp(val phone: String, val gate: Boolean) : Screen()
+    data object VerifyGate : Screen()
     data object Home : Screen()
     data object Contacts : Screen()
     data object Profile : Screen()
@@ -132,6 +134,7 @@ class MainActivity : FragmentActivity() {
             when {
                 !Chat.ready -> Screen.Setup
                 !Chat.loggedIn -> Screen.Welcome
+                !Chat.phoneVerified -> Screen.VerifyGate
                 else -> Screen.Home
             }
         )
@@ -156,7 +159,11 @@ class MainActivity : FragmentActivity() {
                 when (current) {
                     Screen.Setup -> SetupScreen()
                     Screen.Welcome -> WelcomeScreen(onStart = { push(Screen.Login) })
-                    Screen.Login -> PhoneLoginScreen(onBack = ::pop, onNext = { push(Screen.ProfileSetup(it)) })
+                    Screen.Login -> PhoneLoginScreen(onBack = ::pop, onNext = { push(Screen.Otp(it, false)) })
+                    is Screen.Otp -> com.flikk.chat.ui.OtpScreen(current.phone, onBack = ::pop, onVerified = {
+                        if (current.gate) stack = listOf(Screen.Home) else replaceTop(Screen.ProfileSetup(current.phone))
+                    })
+                    Screen.VerifyGate -> com.flikk.chat.ui.VerifyNumberGate(onVerify = { push(Screen.Otp(it, true)) })
                     is Screen.ProfileSetup -> ProfileSetupScreen(current.phone, onBack = ::pop, onDone = { stack = listOf(Screen.Home) })
                     Screen.Home -> HomeScreen(
                         openChat = { push(Screen.Conversation(it)) },
@@ -333,7 +340,7 @@ class MainActivity : FragmentActivity() {
 
     /** Notification click → aa chat open */
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_SEND && Chat.loggedIn) {
+        if (intent?.action == Intent.ACTION_SEND && Chat.loggedIn && Chat.phoneVerified) {
             val mime = intent.type ?: ""
             @Suppress("DEPRECATION")
             val uri: android.net.Uri? = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java)
@@ -343,7 +350,7 @@ class MainActivity : FragmentActivity() {
             return
         }
         val peer = intent?.getStringExtra(EXTRA_PEER) ?: return
-        if (Chat.loggedIn) stack = listOf(Screen.Home, Screen.Conversation(peer))
+        if (Chat.loggedIn && Chat.phoneVerified) stack = listOf(Screen.Home, Screen.Conversation(peer))
     }
 
     /** Incoming call — lock screen meeda kuda chupinchu */

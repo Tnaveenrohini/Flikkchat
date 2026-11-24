@@ -20,8 +20,8 @@ android {
         applicationId = "com.flikk.chat"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "0.20.1"
+        versionCode = 19
+        versionName = "0.22.0"
         // Phones ki matrame (APK size takkuva)
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
