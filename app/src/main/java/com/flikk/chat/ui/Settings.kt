@@ -1,5 +1,7 @@
 package com.flikk.chat.ui
 
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.luminance
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -81,7 +83,7 @@ import java.util.Locale
 fun applyTheme(ctx: Context) {
     val sysDark = (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     val dark = when (Chat.themeMode) { 1 -> false; 2 -> true; else -> sysDark }
-    palette = if (dark) DarkPalette else LightPalette
+    palette = withAccent(if (dark) DarkPalette else LightPalette, Chat.accentColor)
 }
 
 // ---------------- Shared pieces ----------------
@@ -119,7 +121,7 @@ fun Toggle(on: Boolean, label: String, onChange: (Boolean) -> Unit) {
         Modifier.size(52.dp, 32.dp).clip(RoundedCornerShape(16.dp)).background(if (on) Accent else Color(0xFFD6D4E0))
             .clickable { onChange(!on) }.padding(3.dp),
         contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
-    ) { Box(Modifier.size(26.dp).clip(CircleShape).background(Color.White)) }
+    ) { Box(Modifier.size(26.dp).clip(CircleShape).background(OnAccent)) }
 }
 
 @Composable
@@ -484,7 +486,7 @@ fun ChatsSettingsScreen(onBack: () -> Unit, openStarred: () -> Unit) {
                     Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Ink, modifier = Modifier.weight(1f))
                     Box(
                         Modifier.size(22.dp).clip(CircleShape).background(if (mode == v) Accent else Line).padding(if (mode == v) 6.dp else 2.dp)
-                            .clip(CircleShape).background(if (mode == v) Color.White else BubbleThem),
+                            .clip(CircleShape).background(if (mode == v) OnAccent else BubbleThem),
                     )
                 }
             }
@@ -536,5 +538,66 @@ fun LockScreen(onUnlock: () -> Unit) {
         Text(tr("Use your fingerprint / screen lock to open"), color = NavMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(36.dp))
         PillButton(tr("Unlock"), bg = Color.White, fg = NavBg, onClick = onUnlock)
+    }
+}
+
+// ---------------- Theme colour ----------------
+
+/** 6 colours grid. Tap cheste ventane app antha aa colour. */
+@Composable
+fun AccentSwatches(modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    var cur by remember { mutableStateOf(Chat.accentColor) }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        AccentChoices.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { a ->
+                    val on = a.value == cur
+                    val c = Color(a.value)
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(Surface)
+                            .border(2.dp, if (on) c else Color.Transparent, RoundedCornerShape(18.dp))
+                            .clickable { cur = a.value; Chat.accentColor = a.value; applyTheme(ctx) }
+                            .padding(vertical = 14.dp, horizontal = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(Modifier.size(44.dp).clip(CircleShape).background(c), contentAlignment = Alignment.Center) {
+                            if (on) androidx.compose.material3.Icon(
+                                androidx.compose.material.icons.Icons.Filled.Check, null,
+                                tint = if (c.luminance() > 0.45f) Color(0xFF14140A) else Color.White, modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        Text(tr(a.name), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ThemeColourSheet(onClose: () -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = onClose)
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)).clickable(onClick = onClose),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(BubbleThem)
+                .clickable(enabled = false) {}.navigationBarsPadding().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Line))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(tr("Theme colour"), color = Ink, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text(tr("Buttons, badges, ticks and tabs change to this colour"), color = Muted, fontSize = 14.sp)
+            }
+            AccentSwatches()
+            Box(
+                Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(26.dp)).background(Accent).clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) { Text(tr("Apply"), color = OnAccent, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold) }
+        }
     }
 }

@@ -446,6 +446,16 @@ private fun te(): Map<String, String> = hashMapOf(
     "Repost" to "రీపోస్ట్",
     "Ready to post" to "పోస్ట్ చేయడానికి సిద్ధం",
     "Tap the mic to record (up to 30 seconds)" to "రికార్డ్ చేయడానికి మైక్ నొక్కండి (30 సెకన్ల వరకు)",
+    "Theme colour" to "థీమ్ రంగు",
+    "Buttons, badges, ticks and tabs change to this colour" to "బటన్లు, బ్యాడ్జ్‌లు, టిక్స్, ట్యాబ్స్ ఈ రంగులోకి మారతాయి",
+    "Apply" to "వర్తింపజేయి",
+    "Streak" to "స్ట్రీక్",
+    "Sunshine" to "సన్‌షైన్",
+    "Classic Green" to "క్లాసిక్ గ్రీన్",
+    "Hot Pink" to "హాట్ పింక్",
+    "Sky Blue" to "స్కై బ్లూ",
+    "Violet" to "వయొలెట్",
+    "Mango" to "మామిడి",
 )
 
 private fun ta(): Map<String, String> = hashMapOf(
@@ -887,6 +897,16 @@ private fun ta(): Map<String, String> = hashMapOf(
     "Repost" to "மீண்டும் பகிர்",
     "Ready to post" to "பதிவிட தயார்",
     "Tap the mic to record (up to 30 seconds)" to "பதிவு செய்ய மைக்கை தட்டவும் (30 விநாடிகள் வரை)",
+    "Theme colour" to "தீம் நிறம்",
+    "Buttons, badges, ticks and tabs change to this colour" to "பொத்தான்கள், பேட்ஜ்கள், டிக்குகள், தாவல்கள் இந்த நிறத்திற்கு மாறும்",
+    "Apply" to "பயன்படுத்து",
+    "Streak" to "ஸ்ட்ரீக்",
+    "Sunshine" to "சன்ஷைன்",
+    "Classic Green" to "கிளாசிக் பச்சை",
+    "Hot Pink" to "ஹாட் பிங்க்",
+    "Sky Blue" to "வான நீலம்",
+    "Violet" to "ஊதா",
+    "Mango" to "மாம்பழம்",
 )
 
 private fun hi(): Map<String, String> = hashMapOf(
@@ -1328,4 +1348,14 @@ private fun hi(): Map<String, String> = hashMapOf(
     "Repost" to "रीपोस्ट",
     "Ready to post" to "पोस्ट के लिए तैयार",
     "Tap the mic to record (up to 30 seconds)" to "रिकॉर्ड करने के लिए माइक दबाएं (30 सेकंड तक)",
+    "Theme colour" to "थीम रंग",
+    "Buttons, badges, ticks and tabs change to this colour" to "बटन, बैज, टिक और टैब इस रंग में बदल जाएंगे",
+    "Apply" to "लागू करें",
+    "Streak" to "स्ट्रीक",
+    "Sunshine" to "सनशाइन",
+    "Classic Green" to "क्लासिक हरा",
+    "Hot Pink" to "हॉट पिंक",
+    "Sky Blue" to "आसमानी नीला",
+    "Violet" to "बैंगनी",
+    "Mango" to "आम",
 )

@@ -281,9 +281,15 @@ object Chat {
     val hideSeen get() = flag("hide_seen", false)
 
     /** 0 = phone setting, 1 = light, 2 = dark */
+    /** 0 phone setting, 1 light, 2 dark. Default dark (Streaks look). */
     var themeMode: Int
-        get() = prefs.getInt("theme", 0)
+        get() = prefs.getInt("theme", 2)
         set(v) { prefs.edit().putInt("theme", v).apply() }
+
+    /** Theme colour (ARGB). Default Sunshine yellow. */
+    var accentColor: Long
+        get() = prefs.getLong("accent", 0xFFFFE14D)
+        set(v) { prefs.edit().putLong("accent", v).apply() }
 
     @Volatile var backgroundAt = 0L
         private set

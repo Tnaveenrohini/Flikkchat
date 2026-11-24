@@ -125,7 +125,7 @@ fun MessageInfoScreen(msgId: String, onBack: () -> Unit) {
         if (m == null) return@SubPage
         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.CenterEnd) {
             Column(
-                Modifier.clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).background(Accent).padding(horizontal = 14.dp, vertical = 10.dp),
+                Modifier.clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).background(BubbleMine).padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
                 Text(preview(m), color = Color.White, fontSize = 15.sp)
                 Text(clock(m.ts), color = OnAccentMuted, fontSize = 11.sp, modifier = Modifier.align(Alignment.End))
@@ -192,7 +192,7 @@ fun SearchScreen(onBack: () -> Unit, openChat: (String) -> Unit, openMedia: (Str
                         .then(if (chip == i) Modifier.background(Accent) else Modifier.border(1.dp, Line, RoundedCornerShape(17.dp)))
                         .clickable { chip = i }.padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text(c, color = if (chip == i) Color.White else Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+                ) { Text(c, color = if (chip == i) OnAccent else Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
             }
         }
         LazyColumn(Modifier.fillMaxSize()) {
@@ -675,7 +675,7 @@ fun ChatThemeScreen(onBack: () -> Unit) {
     val wall = remember(version) { Chat.wallpaper }
     val font = remember(version) { Chat.fontSize }
     var mode by remember { mutableStateOf(Chat.themeMode) }
-    val bubbleC = if (bubble == 0L) Accent else Color(bubble)
+    val bubbleC = if (bubble == 0L) BubbleMine else Color(bubble)
     val wallC = if (wall == 0L) ChatBg else Color(wall)
     SubPage(tr("Chat theme"), onBack) {
         Column(
@@ -698,6 +698,8 @@ fun ChatThemeScreen(onBack: () -> Unit) {
                 LinkRow(label, if (mode == v) "✓" else "") { mode = v; Chat.themeMode = v; applyTheme(ctx) }
             }
         }
+        Caps(tr("Theme colour"))
+        AccentSwatches(Modifier.padding(horizontal = 16.dp))
         Caps(tr("Font size"))
         Card {
             listOf(0 to tr("Small"), 1 to tr("Medium"), 2 to tr("Large")).forEach { (v, label) ->
@@ -817,7 +819,7 @@ fun ShareLocationScreen(peer: String, onDone: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(44.dp).clip(CircleShape).background(Accent), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.MyLocation, null, tint = Color.White)
+                    Icon(Icons.Filled.MyLocation, null, tint = OnAccent)
                 }
                 Spacer(Modifier.width(14.dp))
                 Column {

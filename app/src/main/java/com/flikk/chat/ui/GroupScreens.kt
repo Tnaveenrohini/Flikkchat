@@ -89,7 +89,7 @@ private fun PickRow(name: String, sub: String, checked: Boolean, onClick: () -> 
                 Box(
                     Modifier.align(Alignment.BottomEnd).size(20.dp).clip(CircleShape).background(Accent),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
+                ) { Icon(Icons.Filled.Check, null, tint = OnAccent, modifier = Modifier.size(14.dp)) }
             }
         }
         Spacer(Modifier.width(14.dp))
@@ -176,7 +176,7 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
                             Modifier.size(26.dp).clip(CircleShape)
                                 .then(if (on) Modifier.background(Accent) else Modifier.border(2.dp, Line, CircleShape)),
                             contentAlignment = Alignment.Center,
-                        ) { if (on) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+                        ) { if (on) Icon(Icons.Filled.Check, null, tint = OnAccent, modifier = Modifier.size(16.dp)) }
                     }
                 }
             }
@@ -230,7 +230,7 @@ fun GroupInfoScreen(gid: String, onBack: () -> Unit, openSettings: () -> Unit = 
                         adding = false; toAdd = emptySet()
                         scope.launch { Chat.addMembers(gid, list) }
                     },
-                    containerColor = Accent, contentColor = Color.White,
+                    containerColor = Accent, contentColor = OnAccent,
                 ) { Icon(Icons.Filled.Check, tr("Add")) }
             },
         ) { pad ->
@@ -410,7 +410,7 @@ fun ForwardScreen(msgId: String, onDone: () -> Unit) {
                     Box(
                         Modifier.size(26.dp).clip(CircleShape).then(if (on) Modifier.background(Accent) else Modifier.border(2.dp, Line, CircleShape)),
                         contentAlignment = Alignment.Center,
-                    ) { if (on) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+                    ) { if (on) Icon(Icons.Filled.Check, null, tint = OnAccent, modifier = Modifier.size(16.dp)) }
                 }
             }
             item { Spacer(Modifier.height(100.dp)) }

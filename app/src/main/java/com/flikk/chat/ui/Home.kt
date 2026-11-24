@@ -48,6 +48,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhoneMissed
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -133,13 +135,14 @@ private fun Title(t: String) =
 @Composable
 private fun SquareFab(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.size(60.dp).shadow(14.dp, RoundedCornerShape(20.dp), ambientColor = Accent, spotColor = Accent)
-            .clip(RoundedCornerShape(20.dp)).background(Accent).clickable(onClick = onClick),
+        modifier.size(58.dp).shadow(10.dp, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(18.dp)).background(Accent).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(26.dp)) }
+    ) { Icon(icon, label, tint = OnAccent, modifier = Modifier.size(26.dp)) }
 }
 
-private const val NAV_SPACE = 112
+private const val NAV_SPACE = 100
+private const val FAB_BOTTOM = 92
 
 // ================= Home =================
 
@@ -166,44 +169,50 @@ fun HomeScreen(
         ) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    BackHandler(enabled = tab != 0) { tab = 0 }
+    var showTheme by remember { mutableStateOf(false) }
+    BackHandler(enabled = tab != 0 && !showTheme) { tab = 0 }
 
     Box(Modifier.fillMaxSize().background(Bg)) {
         when (tab) {
-            0 -> ChatsTab(openChat, openContacts, openProfile, openNewGroup, openStarred, openSearch, openArchived, openLocked)
+            0 -> ChatsTab(openChat, openContacts, openProfile, openNewGroup, openStarred, openSearch, openArchived, openLocked) { showTheme = true }
             1 -> UpdatesTab(openStatusText, openStatusViewer, openAddStatus)
             2 -> GroupsTab(openChat, openNewGroup)
             else -> CallsTab(openCallPicker, openContacts)
         }
         BottomNav(tab, onSelect = { tab = it }, modifier = Modifier.align(Alignment.BottomCenter))
+        if (showTheme) ThemeColourSheet(onClose = { showTheme = false })
     }
 }
 
 @Composable
 private fun BottomNav(tab: Int, onSelect: (Int) -> Unit, modifier: Modifier) {
-    Row(
-        modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 18.dp).fillMaxWidth().height(68.dp)
-            .clip(RoundedCornerShape(34.dp)).background(if (palette.dark) Surface else NavBg).padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        NavItem(tr("Chats"), tab == 0, { onSelect(0) }) { c -> Icon(Icons.AutoMirrored.Filled.Chat, null, tint = c, modifier = Modifier.size(22.dp)) }
-        NavItem(tr("Updates"), tab == 1, { onSelect(1) }) { c -> DashedCircle(c) }
-        NavItem(tr("Groups"), tab == 2, { onSelect(2) }) { c -> Icon(Icons.Filled.Groups, null, tint = c, modifier = Modifier.size(24.dp)) }
-        NavItem(tr("Calls"), tab == 3, { onSelect(3) }) { c -> Icon(Icons.Filled.Call, null, tint = c, modifier = Modifier.size(22.dp)) }
+    Column(modifier.fillMaxWidth().background(Bg)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Divider))
+        Row(
+            Modifier.fillMaxWidth().navigationBarsPadding().height(80.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NavItem(tr("Chats"), tab == 0, { onSelect(0) }) { c -> Icon(Icons.AutoMirrored.Filled.Chat, null, tint = c, modifier = Modifier.size(22.dp)) }
+            NavItem(tr("Updates"), tab == 1, { onSelect(1) }) { c -> DashedCircle(c) }
+            NavItem(tr("Groups"), tab == 2, { onSelect(2) }) { c -> Icon(Icons.Filled.Groups, null, tint = c, modifier = Modifier.size(24.dp)) }
+            NavItem(tr("Calls"), tab == 3, { onSelect(3) }) { c -> Icon(Icons.Filled.Call, null, tint = c, modifier = Modifier.size(22.dp)) }
+        }
     }
 }
 
 @Composable
 private fun NavItem(label: String, selected: Boolean, onClick: () -> Unit, icon: @Composable (Color) -> Unit) {
-    val c = if (selected) Color.White else NavMuted
     Column(
-        Modifier.clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp),
+        Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { icon(c) }
-        Spacer(Modifier.height(3.dp))
-        Text(label, color = c, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold)
+        Box(
+            Modifier.size(width = 60.dp, height = 32.dp).clip(RoundedCornerShape(16.dp)).background(if (selected) Accent else Color.Transparent),
+            contentAlignment = Alignment.Center,
+        ) { icon(if (selected) OnAccent else Muted) }
+        Spacer(Modifier.height(4.dp))
+        Text(label, color = if (selected) Ink else Muted, fontSize = 12.sp, fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold)
     }
 }
 
@@ -223,10 +232,10 @@ private fun DashedCircle(c: Color) {
 private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         Modifier.height(34.dp).clip(RoundedCornerShape(17.dp))
-            .then(if (selected) Modifier.background(Accent) else Modifier.border(1.dp, Line, RoundedCornerShape(17.dp)).background(Bg))
-            .clickable(onClick = onClick).padding(horizontal = 16.dp),
+            .background(if (selected) Accent else Surface)
+            .clickable(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(text, color = if (selected) Color.White else Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(text, color = if (selected) OnAccent else Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
 }
 
 @Composable
@@ -254,12 +263,16 @@ private fun ChatsTab(
     openChat: (String) -> Unit, openContacts: () -> Unit, openProfile: () -> Unit,
     openNewGroup: () -> Unit, openStarred: () -> Unit,
     openSearch: () -> Unit, openArchived: () -> Unit, openLocked: () -> Unit,
+    openTheme: () -> Unit,
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val version by Chat.db.changes.collectAsState()
     val chats by produceState(initialValue = emptyList<ChatRow>(), version) {
         value = withContext(Dispatchers.IO) { Chat.db.chats() }
+    }
+    val streaks by produceState(initialValue = emptyMap<String, Int>(), version) {
+        value = withContext(Dispatchers.IO) { Chat.db.streaks() }
     }
     var q by remember { mutableStateOf("") }
     var filter by rememberSaveable { mutableIntStateOf(0) }
@@ -291,12 +304,17 @@ private fun ChatsTab(
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = NAV_SPACE.dp)) {
             item {
-                TopBar(title = { Brand() }) {
-                    RoundIcon(Icons.Filled.PhotoCamera, tr("Camera")) {
-                        camera.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                Row(
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 6.dp, top = 14.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Flikkchat", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp, color = Ink, modifier = Modifier.weight(1f))
+                    IconButton(onClick = openTheme) { Icon(Icons.Filled.Palette, tr("Theme colour"), tint = Ink) }
+                    IconButton(onClick = { camera.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
+                        Icon(Icons.Filled.PhotoCamera, tr("Camera"), tint = Ink)
                     }
                     Box {
-                        RoundIcon(Icons.Filled.MoreVert, tr("More options")) { menu = true }
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, tr("More options"), tint = Ink) }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text(tr("New group")) }, onClick = { menu = false; openNewGroup() })
                             DropdownMenuItem(text = { Text(tr("Starred messages")) }, onClick = { menu = false; openStarred() })
@@ -306,29 +324,35 @@ private fun ChatsTab(
                     }
                 }
                 Row(
-                    Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp).fillMaxWidth().height(46.dp)
-                        .clip(RoundedCornerShape(23.dp)).background(Surface).clickable(onClick = openSearch).padding(horizontal = 16.dp),
+                    Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp).fillMaxWidth().height(48.dp)
+                        .clip(RoundedCornerShape(24.dp)).background(Surface).clickable(onClick = openSearch).padding(horizontal = 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Filled.Search, null, tint = Muted, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(tr("Search chats, people, messages"), color = Muted, fontSize = 15.sp)
+                    Spacer(Modifier.width(12.dp))
+                    Text(tr("Search"), color = Muted, fontSize = 16.sp)
                 }
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 10.dp),
+                    modifier = Modifier.padding(bottom = 6.dp),
                 ) {
                     item { Chip(tr("All"), filter == 0) { filter = 0 } }
                     item { Chip(if (unreadCount > 0) tr("Unread") + " $unreadCount" else tr("Unread"), filter == 1) { filter = 1 } }
-                    item { Chip(tr("Groups"), filter == 2) { filter = 2 } }
                     item { Chip(tr("Favourites"), filter == 3) { filter = 3 } }
+                    item { Chip(tr("Groups"), filter == 2) { filter = 2 } }
+                    item {
+                        Box(
+                            Modifier.size(width = 40.dp, height = 34.dp).clip(RoundedCornerShape(17.dp)).background(Surface).clickable(onClick = openNewGroup),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Filled.Add, tr("New group"), tint = Muted, modifier = Modifier.size(18.dp)) }
+                    }
                 }
                 if (lockedCount > 0) FolderRow(Icons.Filled.Lock, tr("Locked chats"), "", openLocked)
                 if (archivedCount > 0) FolderRow(Icons.Filled.Archive, tr("Archived"), "$archivedCount", openArchived)
             }
             items(shown, key = { it.peer }) { c ->
-                ChatRowItem(c, onLong = { rowMenu = c }) { openChat(c.peer) }
+                ChatRowItem(c, streak = streaks[c.peer] ?: 0, onLong = { rowMenu = c }) { openChat(c.peer) }
             }
             if (q.isNotBlank() && results.isNotEmpty()) {
                 item { SectionLabel(tr("Messages")) }
@@ -378,7 +402,7 @@ private fun ChatsTab(
                 containerColor = BubbleThem,
             )
         }
-        SquareFab(Icons.Filled.AddComment, tr("New chat"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp)) {
+        SquareFab(Icons.Filled.AddComment, tr("New chat"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = FAB_BOTTOM.dp)) {
             openContacts()
         }
     }
@@ -403,12 +427,16 @@ private fun FolderRow(icon: ImageVector, label: String, count: String, onClick: 
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ChatRowItem(c: ChatRow, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
+fun ChatRowItem(c: ChatRow, streak: Int = 0, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLong).padding(horizontal = 20.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLong).padding(horizontal = 18.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(c.name, 54.dp)
+        // Unread unte theme colour ring
+        Box(
+            Modifier.size(56.dp).border(2.5.dp, if (c.unread > 0) Accent else Line, CircleShape).padding(4.dp),
+            contentAlignment = Alignment.Center,
+        ) { Avatar(c.name, 48.dp) }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -417,6 +445,11 @@ fun ChatRowItem(c: ChatRow, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
                 if (Chat.isFav(c.peer)) {
                     Spacer(Modifier.width(4.dp))
                     Icon(Icons.Filled.Star, null, tint = Color(0xFFE3A008), modifier = Modifier.size(14.dp))
+                }
+                if (streak > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Filled.LocalFireDepartment, tr("Streak"), tint = Streak, modifier = Modifier.size(15.dp))
+                    Text("$streak", color = Streak, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
                 }
                 Spacer(Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
@@ -432,7 +465,7 @@ fun ChatRowItem(c: ChatRow, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
                     Box(
                         Modifier.height(22.dp).clip(RoundedCornerShape(11.dp)).background(Accent).padding(horizontal = 7.dp),
                         contentAlignment = Alignment.Center,
-                    ) { Text(c.unread.toString(), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+                    ) { Text(c.unread.toString(), fontSize = 12.sp, color = OnAccent, fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -483,7 +516,7 @@ private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit, openA
                                     Modifier.align(Alignment.BottomEnd).size(24.dp).clip(CircleShape).background(Surface).padding(3.dp)
                                         .clip(CircleShape).background(Accent),
                                     contentAlignment = Alignment.Center,
-                                ) { Icon(Icons.Filled.Add, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
+                                ) { Icon(Icons.Filled.Add, null, tint = OnAccent, modifier = Modifier.size(14.dp)) }
                             }
                             Text(tr("My status"), fontSize = 12.sp, fontWeight = FontWeight.Bold,
                                 color = if (mine.isNotEmpty()) Color.White else Ink, textAlign = TextAlign.Center,
@@ -535,7 +568,7 @@ private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit, openA
                 )
             }
         }
-        SquareFab(Icons.Filled.PhotoCamera, tr("Add status"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp)) {
+        SquareFab(Icons.Filled.PhotoCamera, tr("Add status"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = FAB_BOTTOM.dp)) {
             openAdd()
         }
     }
@@ -582,7 +615,7 @@ private fun GroupsTab(openChat: (String) -> Unit, openNewGroup: () -> Unit) {
                 }
             }
         }
-        SquareFab(Icons.Filled.GroupAdd, tr("New group"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp), onClick = openNewGroup)
+        SquareFab(Icons.Filled.GroupAdd, tr("New group"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = FAB_BOTTOM.dp), onClick = openNewGroup)
     }
 }
 
@@ -646,7 +679,7 @@ private fun ActionTile(icon: ImageVector, label: String, modifier: Modifier, onC
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         Box(Modifier.size(34.dp).clip(CircleShape).background(Accent), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = OnAccent, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(6.dp))
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)

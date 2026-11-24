@@ -349,7 +349,7 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
                                 sendReply(reply.trim(), tr("Reply sent ✅")); reply = ""
                             },
                             contentAlignment = Alignment.Center,
-                        ) { Icon(Icons.AutoMirrored.Filled.Send, tr("Send reply"), tint = Color.White) }
+                        ) { Icon(Icons.AutoMirrored.Filled.Send, tr("Send reply"), tint = OnAccent) }
                     } else {
                         Box(
                             Modifier.size(56.dp).clip(CircleShape).background(Color(0xFF23252E)).clickable {
@@ -387,9 +387,9 @@ private fun ViewersSheet(st: StatusItem, views: List<Pair<String, Long>>, onClos
                 .background(Bg).clickable(enabled = false) {},
         ) {
             Row(Modifier.fillMaxWidth().background(Accent).padding(start = 20.dp, end = 6.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(tr("Viewed by {0}", views.size), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, tr("Delete status"), tint = Color.White) }
-                IconButton(onClick = { shareStatus(ctx, st) }) { Icon(Icons.Filled.Share, tr("Share"), tint = Color.White) }
+                Text(tr("Viewed by {0}", views.size), color = OnAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, tr("Delete status"), tint = OnAccent) }
+                IconButton(onClick = { shareStatus(ctx, st) }) { Icon(Icons.Filled.Share, tr("Share"), tint = OnAccent) }
             }
             if (views.isEmpty()) Text(tr("No views yet"), color = Muted, modifier = Modifier.padding(24.dp))
             LazyColumn(Modifier.fillMaxSize()) {

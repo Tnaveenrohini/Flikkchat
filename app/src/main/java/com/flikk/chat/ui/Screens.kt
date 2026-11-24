@@ -232,7 +232,7 @@ private fun ShortcutRow(icon: androidx.compose.ui.graphics.vector.ImageVector, l
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(48.dp).clip(CircleShape).background(Accent), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size(22.dp))
+            Icon(icon, null, tint = OnAccent, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.width(14.dp))
         Text(label, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)

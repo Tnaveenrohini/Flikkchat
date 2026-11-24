@@ -318,6 +318,35 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 5) {
         }
     }
 
+    /**
+     * 🔥 Streaks: iddaru (nenu + vaallu) message pampina varusa rojulu.
+     * Ivala inka pampakapoyina, ninnati varaku unna streak chupistundi. 2+ rojulu matrame.
+     */
+    fun streaks(): Map<String, Int> {
+        val now = System.currentTimeMillis()
+        val off = java.util.TimeZone.getDefault().getOffset(now).toLong()
+        val day = 86_400_000L
+        val today = (now + off) / day
+        val since = now - 400 * day
+        val both = HashMap<String, HashSet<Long>>()
+        readableDatabase.rawQuery(
+            "SELECT peer, (ts + $off) / $day AS d, MAX(from_me), MIN(from_me) FROM messages " +
+                "WHERE peer NOT LIKE 'g:%' AND type != 'sys' AND ts > $since GROUP BY peer, d", null
+        ).use { c ->
+            while (c.moveToNext()) {
+                if (c.getInt(2) == 1 && c.getInt(3) == 0) both.getOrPut(c.getString(0)) { HashSet() }.add(c.getLong(1))
+            }
+        }
+        val out = HashMap<String, Int>()
+        for ((peer, days) in both) {
+            var d = if (today in days) today else today - 1
+            var n = 0
+            while (d in days) { n++; d-- }
+            if (n >= 2) out[peer] = n
+        }
+        return out
+    }
+
     fun peer(uid: String): Peer? = readableDatabase.rawQuery(
         "SELECT uid, name, phone FROM peers WHERE uid=?", arrayOf(uid)
     ).use { c -> if (c.moveToFirst()) Peer(c.getString(0), c.getString(1), c.getString(2)) else null }

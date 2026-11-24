@@ -45,6 +45,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import com.flikk.chat.R
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -58,7 +60,36 @@ data class Palette(
     val ink: Color, val bg: Color, val chatBg: Color, val surface: Color, val line: Color,
     val muted: Color, val bubbleThem: Color, val dayChip: Color, val dayInk: Color,
     val e2eBg: Color, val e2eInk: Color, val divider: Color,
+    val onAccent: Color = Color.White, val bubbleMine: Color = Color(0xFF4B2FE0),
 )
+
+/** Theme colour choices (Settings / Home 🎨). value = ARGB */
+data class AccentChoice(val name: String, val value: Long)
+val AccentChoices = listOf(
+    AccentChoice("Sunshine", 0xFFFFE14D),
+    AccentChoice("Classic Green", 0xFF25D366),
+    AccentChoice("Hot Pink", 0xFFFF4D8D),
+    AccentChoice("Sky Blue", 0xFF4D9BFF),
+    AccentChoice("Violet", 0xFF9B7BFF),
+    AccentChoice("Mango", 0xFFFF8A1F),
+)
+
+/** Base palette + user's theme colour */
+fun withAccent(base: Palette, argb: Long): Palette {
+    val c = Color(argb)
+    val light = c.luminance() > 0.45f
+    // Light theme lo pasupu laanti colours text ki kanapadavu — konchem dark chey
+    val accent = if (!base.dark && light) lerp(c, Color.Black, 0.38f) else c
+    val onAccent = if (accent.luminance() > 0.45f) Color(0xFF14140A) else Color.White
+    val bubble = if (base.dark) lerp(base.bg, c, 0.38f) else if (light) lerp(c, Color.Black, 0.5f) else c
+    return base.copy(
+        accent = accent,
+        accentDeep = if (base.dark) lerp(c, Color.White, 0.35f) else lerp(accent, Color.Black, 0.2f),
+        accentSoft = lerp(base.bg, c, if (base.dark) 0.18f else 0.14f),
+        onAccent = onAccent,
+        bubbleMine = bubble,
+    )
+}
 
 val LightPalette = Palette(
     dark = false,
@@ -72,10 +103,10 @@ val LightPalette = Palette(
 val DarkPalette = Palette(
     dark = true,
     accent = Color(0xFF6D55F5), accentDeep = Color(0xFFB9ABFF), accentSoft = Color(0xFF2A2550),
-    ink = Color(0xFFF1F0F7), bg = Color(0xFF0F1117), chatBg = Color(0xFF0B0D12), surface = Color(0xFF1C1F2B),
-    line = Color(0xFF2C2F3D), muted = Color(0xFFA9ACBD), bubbleThem = Color(0xFF1C1F2B),
-    dayChip = Color(0xFF1C1F2B), dayInk = Color(0xFFC3C5D3),
-    e2eBg = Color(0xFF2B2412), e2eInk = Color(0xFFF5D78A), divider = Color(0xFF1C1F2B),
+    ink = Color(0xFFF2F2F5), bg = Color(0xFF0E0E14), chatBg = Color(0xFF0A0A0F), surface = Color(0xFF1C1C24),
+    line = Color(0xFF2A2A33), muted = Color(0xFF9A9AA8), bubbleThem = Color(0xFF1C1C24),
+    dayChip = Color(0xFF1C1C24), dayInk = Color(0xFFC9C9D3),
+    e2eBg = Color(0xFF2B2412), e2eInk = Color(0xFFF5D78A), divider = Color(0xFF1C1C24),
 )
 
 /** Ippati theme. Activity / Settings marchinappudu matrame set avutundi (composition lo kaadu). */
@@ -96,6 +127,9 @@ val DayInk get() = palette.dayInk
 val E2eBg get() = palette.e2eBg
 val E2eInk get() = palette.e2eInk
 val Divider get() = palette.divider
+val OnAccent get() = palette.onAccent
+val BubbleMine get() = palette.bubbleMine
+val Streak = Color(0xFFFF7A1A)
 val NavMuted = Color(0xFFA9ACBD)
 val Online = Color(0xFF15803D)
 val OnlineDot = Color(0xFF16A34A)
@@ -233,7 +267,10 @@ fun initials(name: String): String {
 
 @Composable
 fun Avatar(name: String, size: Dp = 54.dp, rounded: Dp? = null) {
-    val (bg, fg) = pair(name)
+    val (bg0, fg0) = pair(name)
+    // Dark lo: dark circle + light pastel letters (Streaks look)
+    val bg = if (palette.dark) Color(0xFF26262F) else bg0
+    val fg = if (palette.dark) bg0 else fg0
     Box(
         Modifier.size(size).clip(if (rounded != null) RoundedCornerShape(rounded) else CircleShape).background(bg),
         contentAlignment = Alignment.Center,

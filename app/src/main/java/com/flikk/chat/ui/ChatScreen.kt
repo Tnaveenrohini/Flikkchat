@@ -220,7 +220,7 @@ fun ChatScreen(
     val pinnedId = remember(version) { Chat.pinned(peer) }
     val pinnedMsg = remember(version, pinnedId) { pinnedId?.let { Chat.db.msg(it) }?.takeIf { !it.deleted } }
     val wall = remember(version) { Chat.wallpaper }
-    val bubbleColor = remember(version) { Chat.bubbleColor }.let { if (it == 0L) Accent else Color(it) }
+    val bubbleColor = remember(version) { Chat.bubbleColor }.let { if (it == 0L) BubbleMine else Color(it) }
     val fontSz = remember(version) { Chat.fontSize }
     var askTimer by remember { mutableStateOf(false) }
     var askClear by remember { mutableStateOf(false) }
@@ -501,8 +501,8 @@ fun ChatScreen(
                 },
                 contentAlignment = Alignment.Center,
             ) {
-                if (canSend) Icon(Icons.AutoMirrored.Filled.Send, tr("Send"), tint = Color.White, modifier = Modifier.size(22.dp))
-                else Icon(Icons.Filled.Mic, tr("Record voice message"), tint = Color.White, modifier = Modifier.size(22.dp))
+                if (canSend) Icon(Icons.AutoMirrored.Filled.Send, tr("Send"), tint = OnAccent, modifier = Modifier.size(22.dp))
+                else Icon(Icons.Filled.Mic, tr("Record voice message"), tint = OnAccent, modifier = Modifier.size(22.dp))
             }
         }
         }
@@ -687,7 +687,7 @@ private fun SysChip(text: String) {
 @Composable
 private fun Bubble(
     m: Msg, showSender: Boolean, selected: Boolean, onLongPress: () -> Unit, onClick: () -> Unit,
-    bubbleColor: Color = Accent, fontSz: Int = 1, onVote: (Int) -> Unit = {}, onReactionsClick: () -> Unit = {},
+    bubbleColor: Color = BubbleMine, fontSz: Int = 1, onVote: (Int) -> Unit = {}, onReactionsClick: () -> Unit = {},
 ) {
     val mine = m.fromMe
     val shape = RoundedCornerShape(
@@ -813,7 +813,7 @@ private fun PollView(m: Msg, poll: com.flikk.chat.data.Poll, mine: Boolean, onVo
                         Modifier.size(20.dp).clip(CircleShape)
                             .then(if (i in myVotes) Modifier.background(if (mine) Color.White else Accent) else Modifier.border(2.dp, sub, CircleShape)),
                         contentAlignment = Alignment.Center,
-                    ) { if (i in myVotes) Icon(Icons.Filled.Done, null, tint = if (mine) Accent else Color.White, modifier = Modifier.size(14.dp)) }
+                    ) { if (i in myVotes) Icon(Icons.Filled.Done, null, tint = if (mine) BubbleMine else OnAccent, modifier = Modifier.size(14.dp)) }
                     Spacer(Modifier.width(10.dp))
                     Text(o, fontSize = 15.sp, color = ink, modifier = Modifier.weight(1f))
                     Text("${counts[i]}", fontSize = 13.sp, color = sub, fontWeight = FontWeight.Bold)
@@ -952,7 +952,7 @@ private fun AudioRow(m: Msg) {
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (playing) tr("Pause") else tr("Play voice message"),
-                    tint = if (mine) Accent else Color.White, modifier = Modifier.size(20.dp))
+                    tint = if (mine) BubbleMine else OnAccent, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(10.dp))
             Row(Modifier.weight(1f).height(28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
