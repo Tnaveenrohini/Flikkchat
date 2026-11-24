@@ -545,7 +545,7 @@ private fun StatusCardBg(s: StatusItem) {
     if ((s.type == "image" || s.type == "video") && s.media.isNotEmpty()) {
         AsyncImage(model = File(s.media), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
-        if (s.type == "video") PlayBadge(Modifier.align(Alignment.Center))
+        if (s.type == "video") Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { PlayBadge() }
     } else {
         Box(Modifier.fillMaxSize().background(Color(s.color.takeIf { it != 0L } ?: 0xFF3A2F6B)))
     }
