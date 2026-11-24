@@ -74,7 +74,7 @@ sealed class Screen {
     data class ProfileSetup(val phone: String) : Screen()
     data class Otp(val phone: String, val gate: Boolean) : Screen()
     data object VerifyGate : Screen()
-    data class SmsVerify(val phone: String) : Screen()
+    data object EmailAuth : Screen()
     data object Home : Screen()
     data object Contacts : Screen()
     data object Profile : Screen()
@@ -159,13 +159,15 @@ class MainActivity : FragmentActivity() {
                 BackHandler(enabled = stack.size > 1) { pop() }
                 when (current) {
                     Screen.Setup -> SetupScreen()
-                    Screen.Welcome -> WelcomeScreen(onStart = { push(Screen.Login) })
+                    Screen.Welcome -> WelcomeScreen(onStart = { push(if (Chat.FIREBASE_OTP) Screen.Login else Screen.EmailAuth) })
                     Screen.Login -> PhoneLoginScreen(onBack = ::pop, onNext = {
-                        push(if (Chat.FIREBASE_OTP) Screen.Otp(it, false) else Screen.SmsVerify(it))
+                        push(if (Chat.FIREBASE_OTP) Screen.Otp(it, false) else Screen.ProfileSetup(it))
                     })
-                    is Screen.SmsVerify -> com.flikk.chat.ui.SmsVerifyScreen(current.phone, onBack = ::pop, onVerified = {
-                        replaceTop(Screen.ProfileSetup(current.phone))
-                    })
+                    Screen.EmailAuth -> com.flikk.chat.ui.EmailAuthScreen(
+                        onBack = ::pop,
+                        onSignedUp = { replaceTop(Screen.Login) },
+                        onLoggedIn = { profileDone -> if (profileDone) stack = listOf(Screen.Home) else replaceTop(Screen.Login) },
+                    )
                     is Screen.Otp -> com.flikk.chat.ui.OtpScreen(current.phone, onBack = ::pop, onVerified = {
                         if (current.gate) stack = listOf(Screen.Home) else replaceTop(Screen.ProfileSetup(current.phone))
                     })

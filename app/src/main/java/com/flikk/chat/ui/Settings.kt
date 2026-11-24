@@ -1,5 +1,6 @@
 package com.flikk.chat.ui
 
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.luminance
@@ -184,6 +185,8 @@ fun SettingsScreen(
     val ctx = LocalContext.current
     val version by Chat.db.changes.collectAsState()
     val about = remember(version) { Chat.myAbout }
+    var showEmail by remember { mutableStateOf(false) }
+    if (showEmail) AddEmailDialog { showEmail = false }
     SubPage(tr("Settings"), onBack) {
         Row(
             Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp))
@@ -211,6 +214,8 @@ fun SettingsScreen(
         Card {
             IconRow(Icons.Filled.Language, Color(0xFFFCE1F0), Color(0xFF9D174D), tr("App language"), Languages.first { it.first == appLang }.second, openLanguage)
             IconRow(Icons.Filled.Password, Color(0xFFE5E7EB), Color(0xFF374151), tr("Two-step verification"), tr(if (Chat.hasPin) tr("On") else tr("Off")), openTwoStep)
+            IconRow(Icons.Filled.Email, Color(0xFFDCEBFF), Color(0xFF1D4ED8), tr("Email & password"),
+                Chat.myEmail.ifEmpty { tr("Add one to log in on a new phone") }) { showEmail = true }
             IconRow(Icons.Filled.Info, Color(0xFFFFF1C7), Color(0xFF854D0E), tr("Starred messages"), tr("Messages you saved"), openStarred)
             IconRow(Icons.Filled.Share, Color(0xFFE7E3FF), Color(0xFF3A20C2), tr("Invite a friend"), tr("Share Double Bubble")) {
                 val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
@@ -601,4 +606,55 @@ fun ThemeColourSheet(onClose: () -> Unit) {
             ) { Text(tr("Apply"), color = OnAccent, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold) }
         }
     }
+}
+
+
+/** Paata account ki email + password add (kotha phone lo login avvadaniki) */
+@Composable
+fun AddEmailDialog(onDone: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val have = Chat.myEmail
+    var email by remember { mutableStateOf(have) }
+    var pass by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text(tr("Email & password")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (have.isNotEmpty()) {
+                    Text(tr("Your account email: {0}", have), color = Ink)
+                    Text(tr("Forgot your password? We can email you a reset link."), color = Muted, fontSize = 13.sp)
+                } else {
+                    Text(tr("Add an email and password. Then you can log in to this same account on a new phone."), color = Muted, fontSize = 13.sp)
+                    androidx.compose.material3.OutlinedTextField(email, { email = it.trim(); error = null }, label = { Text(tr("Email")) }, singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Email))
+                    androidx.compose.material3.OutlinedTextField(pass, { pass = it; error = null }, label = { Text(tr("Password (at least 6 characters)")) }, singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
+                }
+                error?.let { Text(it, color = Danger, fontSize = 13.sp) }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(enabled = !busy, onClick = {
+                busy = true
+                scope.launch {
+                    val err = if (have.isNotEmpty()) Chat.resetPassword(have) else Chat.emailSignUp(email, pass)
+                    busy = false
+                    if (err != null) error = tr(err)
+                    else {
+                        android.widget.Toast.makeText(ctx,
+                            if (have.isNotEmpty()) tr("Password reset link sent to {0}", have) else tr("Saved ✅"),
+                            android.widget.Toast.LENGTH_LONG).show()
+                        onDone()
+                    }
+                }
+            }) { Text(if (have.isNotEmpty()) tr("Send reset link") else tr("Save"), color = Accent) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDone) { Text(tr("Cancel"), color = Muted) } },
+        containerColor = BubbleThem,
+    )
 }

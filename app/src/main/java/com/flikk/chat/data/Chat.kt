@@ -1,5 +1,8 @@
 package com.flikk.chat.data
 
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
+import com.google.firebase.auth.EmailAuthProvider
 import java.util.concurrent.TimeUnit
 import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.auth.PhoneAuthOptions
@@ -124,6 +127,73 @@ object Chat {
      * Firebase Phone Auth ki maaralante ee flag true cheyyandi.
      */
     const val FIREBASE_OTP = false
+
+    // ---------- ✉️ Email + Password login (Firebase free plan lo pani chestundi) ----------
+
+    val myEmail: String get() = auth.currentUser?.email.orEmpty()
+
+    private fun emailError(e: Exception): String {
+        val m = (e.message ?: "") + " " + e.javaClass.simpleName
+        return when {
+            e is FirebaseAuthWeakPasswordException -> "Password must be at least 6 characters"
+            e is FirebaseAuthUserCollisionException -> "An account with this email already exists. Log in instead."
+            m.contains("OPERATION_NOT_ALLOWED", true) || m.contains("not enabled", true) || m.contains("disabled", true) ->
+                "Enable Authentication → Email/Password in Firebase"
+            e is FirebaseAuthInvalidUserException -> "No account with this email. Sign up first."
+            e is FirebaseAuthInvalidCredentialsException && m.contains("email", true) && m.contains("badly", true) -> "Enter a valid email"
+            e is FirebaseAuthInvalidCredentialsException -> "Wrong email or password"
+            e is FirebaseTooManyRequestsException -> "Too many tries. Please try again later."
+            e is FirebaseNetworkException -> "Network problem. Try again."
+            else -> "Login error: " + (e.message ?: "unknown")
+        }
+    }
+
+    /** Kotha account. Paata (anonymous) login unte daaniki email link — chats alage. null = success */
+    suspend fun emailSignUp(email: String, password: String): String? = withContext(Dispatchers.IO) {
+        val em = email.trim()
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(em).matches()) return@withContext "Enter a valid email"
+        if (password.length < 6) return@withContext "Password must be at least 6 characters"
+        try {
+            withTimeout(25_000) {
+                val cur = auth.currentUser
+                if (cur != null && cur.isAnonymous) cur.linkWithCredential(EmailAuthProvider.getCredential(em, password)).await()
+                else { if (cur != null) auth.signOut(); auth.createUserWithEmailAndPassword(em, password).await() }
+            }
+            null
+        } catch (e: TimeoutCancellationException) { "Internet is slow, please try again" } catch (e: Exception) { emailError(e) }
+    }
+
+    /**
+     * Login. Profile (name, phone) Firestore lo unte ventane ready — first = error, second = profile ready?
+     */
+    suspend fun emailLogin(email: String, password: String): Pair<String?, Boolean> = withContext(Dispatchers.IO) {
+        val em = email.trim()
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(em).matches()) return@withContext "Enter a valid email" to false
+        if (password.isEmpty()) return@withContext "Enter your password" to false
+        try {
+            val user = withTimeout(25_000) {
+                if (auth.currentUser != null) auth.signOut()
+                auth.signInWithEmailAndPassword(em, password).await().user
+            } ?: return@withContext "Login failed, please try again" to false
+            val doc = try { withTimeout(15_000) { fs.collection("users").document(user.uid).get().await() } } catch (_: Exception) { null }
+            val name = doc?.getString("name").orEmpty()
+            val phone = doc?.getString("phone").orEmpty()
+            if (name.isNotBlank() && phone.isNotBlank()) {
+                prefs.edit()
+                    .putString("name", name).putString("phone", phone)
+                    .putString("about", doc?.getString("about") ?: "")
+                    .putBoolean("registered", true).apply()
+                restart()
+                null to true
+            } else null to false
+        } catch (e: TimeoutCancellationException) { "Internet is slow, please try again" to false } catch (e: Exception) { emailError(e) to false }
+    }
+
+    suspend fun resetPassword(email: String): String? = withContext(Dispatchers.IO) {
+        val em = email.trim()
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(em).matches()) return@withContext "Enter a valid email"
+        try { auth.sendPasswordResetEmail(em).await(); null } catch (e: Exception) { emailError(e) }
+    }
 
     // ---------- 📱 Real OTP (Firebase Phone Auth) ----------
 

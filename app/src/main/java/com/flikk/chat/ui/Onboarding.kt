@@ -1,5 +1,9 @@
 package com.flikk.chat.ui
 
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -420,85 +424,106 @@ fun VerifyNumberGate(onVerify: (String) -> Unit) {
     }
 }
 
-// ---------------- Free number verification (self SMS) ----------------
+// ---------------- Email + Password ----------------
 
 @Composable
-fun SmsVerifyScreen(phone: String, onBack: () -> Unit, onVerified: () -> Unit) {
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val code = rememberSaveable { com.flikk.chat.data.SelfSms.newCode() }
-    var typed by rememberSaveable { mutableStateOf("") }
-    var state by remember { mutableIntStateOf(0) } // 0 idle, 1 waiting, 2 done, 3 failed
-    var error by remember { mutableStateOf<String?>(null) }
-    var wait by remember { mutableIntStateOf(0) }
-    var done by remember { mutableStateOf(false) }
-
-    fun ok() {
-        if (done) return
-        done = true; state = 2
-        com.flikk.chat.data.SelfSms.stop(ctx)
-        onVerified()
-    }
-    fun start() {
-        error = null; state = 1; wait = 60
-        com.flikk.chat.data.SelfSms.listen(ctx, code) { typed = it; ok() }
-        com.flikk.chat.data.SelfSms.send(ctx, phone, code)?.let { error = tr(it); state = 3 }
-    }
-    val perms = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { res ->
-        if (res.values.all { it }) start()
-        else { state = 3; error = tr("Allow SMS permission to verify your number") }
-    }
-    fun begin() = perms.launch(arrayOf(android.Manifest.permission.SEND_SMS, android.Manifest.permission.RECEIVE_SMS))
-    LaunchedEffect(Unit) { begin() }
-    LaunchedEffect(state) {
-        if (state == 1) {
-            while (wait > 0 && state == 1) { kotlinx.coroutines.delay(1000); wait-- }
-            if (state == 1) { state = 3; error = tr("SMS did not arrive. Check that the number is the SIM in this phone and you have SMS balance.") }
+private fun PasswordField(label: String, value: String, onChange: (String) -> Unit) {
+    var show by remember { mutableStateOf(false) }
+    Column {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DayInk)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(16.dp))
+                .border(1.5.dp, Line, RoundedCornerShape(16.dp)).background(Bg).padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicTextField(
+                value = value, onValueChange = onChange, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                visualTransformation = if (show) androidx.compose.ui.text.input.VisualTransformation.None
+                    else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                textStyle = TextStyle(fontFamily = Jakarta, fontSize = 16.sp, color = Ink, fontWeight = FontWeight.SemiBold),
+                cursorBrush = SolidColor(Accent), modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = { show = !show }) {
+                Icon(
+                    if (show) androidx.compose.material.icons.Icons.Filled.VisibilityOff else androidx.compose.material.icons.Icons.Filled.Visibility,
+                    if (show) tr("Hide password") else tr("Show password"), tint = Muted,
+                )
+            }
         }
     }
-    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { com.flikk.chat.data.SelfSms.stop(ctx) } }
+}
 
+/** Sign up / Log in with email (Firebase free plan) */
+@Composable
+fun EmailAuthScreen(onBack: () -> Unit, onSignedUp: () -> Unit, onLoggedIn: (Boolean) -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var login by rememberSaveable { mutableStateOf(false) }
+    var email by rememberSaveable { mutableStateOf("") }
+    var pass by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
     Column(
         Modifier.fillMaxSize().background(Bg).statusBarsPadding().navigationBarsPadding().imePadding()
+            .verticalScroll(androidx.compose.foundation.rememberScrollState())
             .padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 34.dp),
     ) {
         IconButton(onClick = onBack, modifier = Modifier.offset(x = (-10).dp)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp))
         }
-        Spacer(Modifier.height(22.dp))
-        Text(tr("Verifying your number"), fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold,
-            letterSpacing = (-0.8).sp, color = Ink)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(18.dp))
+        Text(if (login) tr("Welcome back") else tr("Create your account"), fontSize = 30.sp, lineHeight = 36.sp,
+            fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp, color = Ink)
+        Spacer(Modifier.height(8.dp))
         Text(
-            tr("We send one SMS from this phone to {0}. If it arrives here, your number is verified. Normal SMS charges may apply.", phone),
+            if (login) tr("Log in with your email and password. Your profile and contacts come back.")
+            else tr("Use your email and a password. You can log in again with them on a new phone."),
             fontSize = 15.sp, lineHeight = 22.sp, color = Muted,
         )
-        Spacer(Modifier.height(30.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            repeat(6) { i ->
-                val ch = typed.getOrNull(i)?.toString() ?: ""
+        Spacer(Modifier.height(20.dp))
+        // Sign up | Log in switch
+        Row(Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(23.dp)).background(Surface).padding(4.dp)) {
+            listOf(false to tr("Sign up"), true to tr("Log in")).forEach { (isLogin, label) ->
+                val on = login == isLogin
                 Box(
-                    Modifier.weight(1f).height(60.dp).clip(RoundedCornerShape(14.dp)).background(Surface)
-                        .border(2.dp, if (state == 2) Accent else Line, RoundedCornerShape(14.dp)),
+                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(19.dp)).background(if (on) Accent else Color.Transparent)
+                        .clickable { login = isLogin; error = null },
                     contentAlignment = Alignment.Center,
-                ) { Text(ch, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Ink) }
+                ) { Text(label, color = if (on) OnAccent else Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
             }
         }
+        Spacer(Modifier.height(22.dp))
+        BoxField(tr("Email"), email, { email = it.trim(); error = null }, keyboard = KeyboardType.Email)
         Spacer(Modifier.height(16.dp))
-        when (state) {
-            1 -> Row(verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = Accent, strokeWidth = 2.dp)
-                Spacer(Modifier.width(10.dp))
-                Text(tr("Waiting for the SMS… {0}s", wait), color = Muted, fontSize = 14.sp)
-            }
-            2 -> Text(tr("Number verified ✅"), color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            3 -> {
-                error?.let { Text(it, color = Danger, fontSize = 14.sp, lineHeight = 20.sp) }
-                Spacer(Modifier.height(10.dp))
-                Text(tr("Try again"), color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { begin() }.padding(vertical = 6.dp))
+        PasswordField(if (login) tr("Password") else tr("Password (at least 6 characters)"), pass) { pass = it; error = null }
+        if (login) {
+            Spacer(Modifier.height(10.dp))
+            Text(tr("Forgot password?"), color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                    scope.launch {
+                        val err = Chat.resetPassword(email)
+                        if (err != null) error = tr(err)
+                        else android.widget.Toast.makeText(ctx, tr("Password reset link sent to {0}", email.trim()), android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }.padding(vertical = 6.dp))
+        }
+        error?.let { Spacer(Modifier.height(10.dp)); Text(it, color = Danger, fontSize = 14.sp, lineHeight = 20.sp) }
+        Spacer(Modifier.height(28.dp))
+        PillButton(if (login) tr("Log in") else tr("Sign up"), enabled = email.isNotBlank() && pass.isNotEmpty(), busy = busy) {
+            busy = true; error = null
+            scope.launch {
+                if (login) {
+                    val (err, ready) = Chat.emailLogin(email, pass)
+                    busy = false
+                    if (err != null) error = tr(err) else onLoggedIn(ready)
+                } else {
+                    val err = Chat.emailSignUp(email, pass)
+                    busy = false
+                    if (err != null) error = tr(err) else onSignedUp()
+                }
             }
         }
-        Spacer(Modifier.weight(1f))
-        Text(tr("Wrong number? Go back and change it."), color = Muted, fontSize = 13.sp)
     }
 }
