@@ -215,7 +215,7 @@ fun SettingsScreen(
             IconRow(Icons.Filled.Share, Color(0xFFE7E3FF), Color(0xFF3A20C2), tr("Invite a friend"), tr("Share Double Bubble")) {
                 val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
                     Intent.EXTRA_TEXT,
-                    tr("Hey! Let's chat on Double Bubble 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Double Bubble/releases/latest"
+                    tr("Hey! Let's chat on Double Bubble 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Flikkchat/releases/latest"
                 )
                 ctx.startActivity(Intent.createChooser(i, tr("Invite")))
             }

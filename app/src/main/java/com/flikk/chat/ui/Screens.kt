@@ -161,7 +161,7 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
     val invite = {
         val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
             Intent.EXTRA_TEXT,
-            tr("Hey! Let's chat on Double Bubble 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Double Bubble/releases/latest"
+            tr("Hey! Let's chat on Double Bubble 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Flikkchat/releases/latest"
         )
         ctx.startActivity(Intent.createChooser(i, tr("Invite")))
     }
