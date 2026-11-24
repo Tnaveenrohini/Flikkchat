@@ -161,7 +161,7 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
     val invite = {
         val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
             Intent.EXTRA_TEXT,
-            tr("Hey! Let's chat on Flikkchat 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Flikkchat/releases/latest"
+            tr("Hey! Let's chat on Double Bubble 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Double Bubble/releases/latest"
         )
         ctx.startActivity(Intent.createChooser(i, tr("Invite")))
     }
@@ -178,7 +178,7 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBackIos, tr("Back"), tint = Ink, modifier = Modifier.size(20.dp)) }
                 Column {
                     Text(tr("New chat"), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
-                    Text(contacts?.let { tr("{0} contacts on Flikkchat", it.size) } ?: tr("Finding contacts…"), fontSize = 12.sp, color = Muted)
+                    Text(contacts?.let { tr("{0} contacts on Double Bubble", it.size) } ?: tr("Finding contacts…"), fontSize = 12.sp, color = Muted)
                 }
             }
             Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 10.dp)) { SearchPill(q, { q = it }, tr("Search name or number")) }
@@ -187,7 +187,7 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
                 addContact.launch(Intent(Intent.ACTION_INSERT).setType(ContactsContract.Contacts.CONTENT_TYPE))
             }
             ShortcutRow(Icons.Filled.Link, tr("Invite with link")) { invite() }
-            SectionLabel(tr("Contacts on Flikkchat"))
+            SectionLabel(tr("Contacts on Double Bubble"))
         }
         when {
             !granted -> item {
@@ -202,7 +202,7 @@ fun ContactsScreen(onBack: () -> Unit, openChat: (String) -> Unit, openNewGroup:
             }
             shown.isEmpty() -> item {
                 Text(
-                    if (q.isNotBlank()) tr("No results for \"{0}\"", q) else tr("None of your contacts are on Flikkchat yet.\nInvite them with 'Invite with link' above!"),
+                    if (q.isNotBlank()) tr("No results for \"{0}\"", q) else tr("None of your contacts are on Double Bubble yet.\nInvite them with 'Invite with link' above!"),
                     color = Muted, textAlign = TextAlign.Center, fontSize = 14.sp,
                     modifier = Modifier.fillMaxWidth().padding(28.dp),
                 )

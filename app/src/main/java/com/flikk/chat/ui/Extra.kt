@@ -454,9 +454,9 @@ private fun shareFile(ctx: android.content.Context, m: Msg) = try {
 private fun saveToGallery(ctx: android.content.Context, m: Msg): Boolean = try {
     val video = m.type == "video"
     val values = ContentValues().apply {
-        put(MediaStore.MediaColumns.DISPLAY_NAME, "Flikkchat_" + File(m.media).name)
+        put(MediaStore.MediaColumns.DISPLAY_NAME, "DoubleBubble_" + File(m.media).name)
         put(MediaStore.MediaColumns.MIME_TYPE, m.mime.ifEmpty { if (video) "video/mp4" else "image/jpeg" })
-        if (Build.VERSION.SDK_INT >= 29) put(MediaStore.MediaColumns.RELATIVE_PATH, (if (video) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES) + "/Flikkchat")
+        if (Build.VERSION.SDK_INT >= 29) put(MediaStore.MediaColumns.RELATIVE_PATH, (if (video) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES) + "/Double Bubble")
     }
     val col = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
     val uri = ctx.contentResolver.insert(col, values)
@@ -633,7 +633,7 @@ fun BackupScreen(onBack: () -> Unit) {
                 fontSize = 13.sp, lineHeight = 19.sp, color = Muted)
             Spacer(Modifier.height(16.dp))
             PillButton(if (busy) tr("Backing up…") else tr("Back up now"), busy = busy) {
-                exportLauncher.launch("Flikkchat-backup-" + SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) + ".zip")
+                exportLauncher.launch("DoubleBubble-backup-" + SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) + ".zip")
             }
             msg?.let { Spacer(Modifier.height(10.dp)); Text(it, color = Accent, fontSize = 13.sp) }
         }

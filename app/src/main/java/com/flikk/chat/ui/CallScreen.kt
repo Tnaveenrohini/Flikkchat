@@ -343,7 +343,7 @@ private fun IncomingLayout(st: CallState, name: String, onAccept: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(if (st.video) Icons.Filled.Videocam else Icons.Filled.Call, null, tint = NavMuted, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
-            Text(tr(if (st.video) tr("Flikkchat video call") else tr("Flikkchat voice call")), fontSize = 13.sp, color = NavMuted, fontWeight = FontWeight.SemiBold)
+            Text(tr(if (st.video) tr("Double Bubble video call") else tr("Double Bubble voice call")), fontSize = 13.sp, color = NavMuted, fontWeight = FontWeight.SemiBold)
         }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Box(Modifier.size(200.dp).border(2.dp, Color(0x2EC9BFFF), CircleShape), contentAlignment = Alignment.Center) {

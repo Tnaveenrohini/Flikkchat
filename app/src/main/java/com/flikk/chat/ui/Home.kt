@@ -105,13 +105,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** "Flikk" + accent "chat" */
+/** "Double" + accent "Bubble" */
 @Composable
 fun Brand(size: TextUnit = 28.sp) {
     Text(
         buildAnnotatedString {
-            append("Flikk")
-            withStyle(SpanStyle(color = Accent)) { append("chat") }
+            append("Double ")
+            withStyle(SpanStyle(color = Accent)) { append("Bubble") }
         },
         fontSize = size, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.8).sp, color = Ink,
     )
@@ -308,7 +308,7 @@ private fun ChatsTab(
                     Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 6.dp, top = 14.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Flikkchat", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp, color = Ink, modifier = Modifier.weight(1f))
+                    Text("Double Bubble", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp, color = Ink, modifier = Modifier.weight(1f))
                     IconButton(onClick = openTheme) { Icon(Icons.Filled.Palette, tr("Theme colour"), tint = Ink) }
                     IconButton(onClick = { camera.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
                         Icon(Icons.Filled.PhotoCamera, tr("Camera"), tint = Ink)
@@ -714,7 +714,7 @@ fun CallPickerScreen(video: Boolean, onBack: () -> Unit) {
                 }
             }
             if (people.isEmpty()) item {
-                Text(tr("No contacts on Flikkchat"), color = Muted, modifier = Modifier.fillMaxWidth().padding(32.dp), textAlign = TextAlign.Center)
+                Text(tr("No contacts on Double Bubble"), color = Muted, modifier = Modifier.fillMaxWidth().padding(32.dp), textAlign = TextAlign.Center)
             }
         }
     }

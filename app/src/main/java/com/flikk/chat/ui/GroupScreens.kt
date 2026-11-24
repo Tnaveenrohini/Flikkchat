@@ -157,7 +157,7 @@ fun NewGroupScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
                     Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Accent) }
                 }
                 list.isEmpty() -> item {
-                    Text(tr("None of your contacts are on Flikkchat yet"), color = Muted, modifier = Modifier.padding(20.dp))
+                    Text(tr("None of your contacts are on Double Bubble yet"), color = Muted, modifier = Modifier.padding(20.dp))
                 }
                 else -> items(list, key = { it.uid }) { c ->
                     val on = picked.any { it.uid == c.uid }

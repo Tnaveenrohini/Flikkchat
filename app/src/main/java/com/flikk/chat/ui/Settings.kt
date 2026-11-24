@@ -212,15 +212,15 @@ fun SettingsScreen(
             IconRow(Icons.Filled.Language, Color(0xFFFCE1F0), Color(0xFF9D174D), tr("App language"), Languages.first { it.first == appLang }.second, openLanguage)
             IconRow(Icons.Filled.Password, Color(0xFFE5E7EB), Color(0xFF374151), tr("Two-step verification"), tr(if (Chat.hasPin) tr("On") else tr("Off")), openTwoStep)
             IconRow(Icons.Filled.Info, Color(0xFFFFF1C7), Color(0xFF854D0E), tr("Starred messages"), tr("Messages you saved"), openStarred)
-            IconRow(Icons.Filled.Share, Color(0xFFE7E3FF), Color(0xFF3A20C2), tr("Invite a friend"), tr("Share Flikkchat")) {
+            IconRow(Icons.Filled.Share, Color(0xFFE7E3FF), Color(0xFF3A20C2), tr("Invite a friend"), tr("Share Double Bubble")) {
                 val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(
                     Intent.EXTRA_TEXT,
-                    tr("Hey! Let's chat on Flikkchat 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Flikkchat/releases/latest"
+                    tr("Hey! Let's chat on Double Bubble 💬 Made in India app 🇮🇳") + "\nhttps://github.com/Tnaveenrohini/Double Bubble/releases/latest"
                 )
                 ctx.startActivity(Intent.createChooser(i, tr("Invite")))
             }
         }
-        Text("Flikkchat · Made in India 🇮🇳", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(8.dp))
+        Text("Double Bubble · by Flikk · Made in India 🇮🇳", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(8.dp))
     }
 }
 
@@ -388,7 +388,7 @@ fun StorageScreen(onBack: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(i?.let { size(it.total) } ?: "…", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.weight(1f))
-                Text(tr("used by Flikkchat"), fontSize = 13.sp, color = Muted)
+                Text(tr("used by Double Bubble"), fontSize = 13.sp, color = Muted)
             }
             if (i != null && i.total > 0) {
                 val parts = listOf(i.photos to Accent, i.videos to Color(0xFF0E7490), i.audio to Danger, i.db to Color(0xFFC9C6D8))
@@ -498,8 +498,8 @@ fun ChatsSettingsScreen(onBack: () -> Unit, openStarred: () -> Unit) {
                 tr("Chats, photos, videos and voice are saved in one file. Pick Google Drive in the file picker to save it there."),
                 fontSize = 13.sp, lineHeight = 19.sp, color = Muted, modifier = Modifier.padding(16.dp),
             )
-            LinkRow(tr("Back up now"), sub = "Flikkchat-backup .zip") {
-                if (!busy) exportLauncher.launch("Flikkchat-backup-" + SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) + ".zip")
+            LinkRow(tr("Back up now"), sub = "DoubleBubble-backup .zip") {
+                if (!busy) exportLauncher.launch("DoubleBubble-backup-" + SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) + ".zip")
             }
             LinkRow(tr("Restore from backup"), sub = tr("Current chats will be replaced")) { if (!busy) askRestore = true }
             backupMsg?.let { Text(it, color = Accent, fontSize = 13.sp, modifier = Modifier.padding(16.dp)) }
@@ -534,7 +534,7 @@ fun LockScreen(onUnlock: () -> Unit) {
             Icon(Icons.Filled.Lock, null, tint = Color.White, modifier = Modifier.size(38.dp))
         }
         Spacer(Modifier.height(22.dp))
-        Text(tr("Flikkchat locked"), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+        Text(tr("Double Bubble locked"), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(Modifier.height(8.dp))
         Text(tr("Use your fingerprint / screen lock to open"), color = NavMuted, fontSize = 14.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(36.dp))

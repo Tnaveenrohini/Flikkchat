@@ -293,7 +293,7 @@ class MainActivity : FragmentActivity() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { onOk() }
         })
         prompt.authenticate(
-            BiometricPrompt.PromptInfo.Builder().setTitle("Flikkchat").setSubtitle(com.flikk.chat.ui.tr("Locked chats"))
+            BiometricPrompt.PromptInfo.Builder().setTitle("Double Bubble").setSubtitle(com.flikk.chat.ui.tr("Locked chats"))
                 .setAllowedAuthenticators(auth).build()
         )
     }
@@ -313,7 +313,7 @@ class MainActivity : FragmentActivity() {
             }
         })
         val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Flikkchat unlock")
+            .setTitle("Double Bubble unlock")
             .setSubtitle("Fingerprint / screen lock")
             .setAllowedAuthenticators(auth)
             .build()

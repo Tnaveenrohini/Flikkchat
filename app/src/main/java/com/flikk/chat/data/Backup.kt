@@ -58,7 +58,7 @@ object Backup {
                 }
             }
         } ?: error("Could not open file")
-        if (!hasDb) error("This is not a Flikkchat backup file")
+        if (!hasDb) error("This is not a Double Bubble backup file")
 
         Chat.db.close()
         val dbFile = ctx.getDatabasePath(DB_NAME)

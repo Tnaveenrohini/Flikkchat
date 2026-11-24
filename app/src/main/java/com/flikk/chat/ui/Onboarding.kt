@@ -149,7 +149,7 @@ fun WelcomeScreen(onStart: () -> Unit) {
         Spacer(Modifier.height(28.dp))
         PillButton(tr("Get started"), bg = Color.White, fg = NavBg, onClick = onStart)
         Spacer(Modifier.height(14.dp))
-        Text(tr("By continuing, you agree to the Flikkchat Terms and Privacy Policy."),
+        Text(tr("By continuing, you agree to the Double Bubble Terms and Privacy Policy."),
             color = NavMuted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     }
 }
@@ -181,7 +181,7 @@ fun PhoneLoginScreen(onBack: () -> Unit, onNext: (String) -> Unit) {
         Text(tr("Enter your phone number"), fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold,
             letterSpacing = (-0.8).sp, color = Ink)
         Spacer(Modifier.height(10.dp))
-        Text(tr("Your friends will find you on Flikkchat with this number."), fontSize = 15.sp, lineHeight = 22.sp, color = Muted)
+        Text(tr("Your friends will find you on Double Bubble with this number."), fontSize = 15.sp, lineHeight = 22.sp, color = Muted)
         Spacer(Modifier.height(30.dp))
         Text(tr("Country"), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DayInk)
         Spacer(Modifier.height(8.dp))
@@ -214,7 +214,7 @@ fun PhoneLoginScreen(onBack: () -> Unit, onNext: (String) -> Unit) {
 @Composable
 fun ProfileSetupScreen(phone: String, onBack: () -> Unit, onDone: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
-    var about by rememberSaveable { mutableStateOf(tr("Hey there! I am on Flikkchat")) }
+    var about by rememberSaveable { mutableStateOf(tr("Hey there! I am on Double Bubble")) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var needPin by remember { mutableStateOf(false) }

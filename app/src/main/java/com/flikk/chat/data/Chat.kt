@@ -164,7 +164,7 @@ object Chat {
                     mapOf(
                         "name" to name.trim(),
                         "phone" to phone,
-                        "about" to "Hey! I'm on Flikkchat",
+                        "about" to "Hey! I'm on Double Bubble",
                         "lastActive" to System.currentTimeMillis(),
                     ),
                     SetOptions.merge()
@@ -176,7 +176,7 @@ object Chat {
             prefs.edit()
                 .putString("name", name.trim())
                 .putString("phone", phone)
-                .putString("about", "Hey! I'm on Flikkchat")
+                .putString("about", "Hey! I'm on Double Bubble")
                 .putBoolean("registered", true)
                 .apply()
             start()
@@ -794,7 +794,7 @@ object Chat {
         val wantNotify = if (group != null) flag("notify_groups", true) else flag("notify_msgs", true)
         if (fresh && !isOpen && type != "sys" && wantNotify && !isMuted(peerKey)) {
             val hidden = isLocked(peerKey)
-            val title = if (hidden) "Flikkchat" else db.peer(peerKey)?.name ?: "Flikkchat"
+            val title = if (hidden) "Double Bubble" else db.peer(peerKey)?.name ?: "Double Bubble"
             val body = when {
                 hidden || !flag("notify_preview", true) -> "New message"
                 group != null -> "${nameOf(from)}: ${preview(m)}"
