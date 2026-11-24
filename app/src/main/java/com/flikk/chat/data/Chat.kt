@@ -373,7 +373,11 @@ object Chat {
 
     /** Status ki reply (chat lo vellutundi) */
     fun replyToStatus(st: StatusItem, text: String) {
-        val quote = Msg(st.id, st.owner, false, if (st.type == "image") "📷 Status" + (if (st.text.isNotBlank()) ": ${st.text}" else "") else "Status: ${st.text}",
+        val quote = Msg(st.id, st.owner, false, when (st.type) {
+            "image" -> "📷 Status" + (if (st.text.isNotBlank()) ": ${st.text}" else "")
+            "video" -> "🎥 Status" + (if (st.text.isNotBlank()) ": ${st.text}" else "")
+            else -> "Status: ${st.text}"
+        },
             st.ts, 0, st.owner)
         send(st.owner, text, reply = quote)
     }
@@ -721,7 +725,7 @@ object Chat {
         if (type == "status") {
             val ts = d.getLong("ts") ?: System.currentTimeMillis()
             if (System.currentTimeMillis() - ts < STATUS_TTL) {
-                db.insertStatus(StatusItem(id, from, if (mediaPath.isNotEmpty()) "image" else "text", text,
+                db.insertStatus(StatusItem(id, from, if (mediaPath.isEmpty()) "text" else if (mime.startsWith("video")) "video" else "image", text,
                     d.getLong("color") ?: 0L, mediaPath, ts, false))
             } else if (mediaPath.isNotEmpty()) File(mediaPath).delete()
             try { ref.delete().await() } catch (_: Exception) {}
@@ -931,9 +935,21 @@ object Chat {
         } catch (e: Exception) { "Could not post status" }
     }
 
-    private fun shareStatus(st: StatusItem) {
-        val m = Msg(st.id, "", true, st.text, st.ts, 0, me ?: "", "status", st.media,
-            if (st.media.isNotEmpty()) "image/jpeg" else "")
+    /** Video status (16 MB lopu) */
+    suspend fun postVideoStatus(uri: Uri, caption: String): String? = withContext(Dispatchers.IO) {
+        val uid = me ?: return@withContext "Not logged in"
+        val id = UUID.randomUUID().toString()
+        try {
+            val (f, mime) = Media.prepareVideo(app, uri, id) ?: return@withContext "Video must be smaller than 16 MB"
+            val st = StatusItem(id, uid, "video", caption.trim(), 0, f.absolutePath, System.currentTimeMillis(), true)
+            db.insertStatus(st)
+            shareStatus(st, mime)
+            null
+        } catch (e: Exception) { "Could not post status" }
+    }
+
+    private fun shareStatus(st: StatusItem, mime: String = if (st.media.isNotEmpty()) "image/jpeg" else "") {
+        val m = Msg(st.id, "", true, st.text, st.ts, 0, me ?: "", "status", st.media, mime)
         val to = statusAudience()
         scope.launch {
             try { deliver(m, to, mapOf("color" to st.color)) } catch (_: Exception) {}
@@ -1006,6 +1022,11 @@ object Chat {
     }
 
     fun star(m: Msg) = db.setStarred(m.id, !m.starred)
+
+    /** Anni chats read ani mark cheyyi */
+    fun markAllRead() {
+        for (c in db.chats()) if (c.unread > 0) markRead(c.peer)
+    }
 
     /** Chat open chesinappudu — blue ticks pampu. */
     fun markRead(peer: String) {

@@ -50,6 +50,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -156,18 +159,29 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
     var showViews by remember { mutableStateOf(false) }
     var reply by remember { mutableStateOf("") }
     val cur = list[index.coerceIn(0, list.lastIndex)]
+    val isVideo = cur.type == "video"
+    var videoMs by remember(cur.id) { mutableStateOf(0L) }
+    val hold = paused || showViews || reply.isNotEmpty()
 
     LaunchedEffect(cur.id) {
         if (!isMine) Chat.viewStatus(cur)
         progress = 0f
         while (progress < 1f) {
             delay(50)
-            if (!paused && !showViews && reply.isEmpty()) progress += 50f / 5000f
+            val total = if (isVideo) videoMs.toFloat() else 5000f
+            val h = paused || showViews || reply.isNotEmpty()
+            if (!h && total > 0f) progress += 50f / total
         }
         if (index < list.lastIndex) index++ else onDone()
     }
 
-    val bg = if (cur.type == "text") Color(cur.color.takeIf { it != 0L } ?: 0xFF4B2FE0) else Color(0xFF3A2F6B)
+    val bg = when (cur.type) {
+        "text" -> Color(cur.color.takeIf { it != 0L } ?: 0xFF4B2FE0)
+        "video" -> Color.Black
+        else -> Color(0xFF3A2F6B)
+    }
+    val views = remember(cur.id, version) { if (isMine) Chat.db.views(cur.id) else emptyList() }
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().background(bg).imePadding()) {
         // Progress bars
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 12.dp, top = 16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -206,7 +220,15 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
             },
             contentAlignment = Alignment.Center,
         ) {
-            if (cur.type == "text") {
+            if (isVideo) {
+                key(cur.id) {
+                    StatusVideo(android.net.Uri.fromFile(File(cur.media)), Modifier.fillMaxWidth(), paused = hold,
+                        onReady = { videoMs = it }, onEnd = { progress = 1f })
+                }
+                if (cur.text.isNotBlank()) Text(cur.text, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.4f)).padding(16.dp))
+            } else if (cur.type == "text") {
                 Text(cur.text, color = Color.White, fontSize = 30.sp, lineHeight = 38.sp, fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center, modifier = Modifier.padding(30.dp))
             } else {
@@ -224,7 +246,6 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
         }
         // Bottom
         if (isMine) {
-            val views = remember(cur.id, version) { Chat.db.views(cur.id) }
             Row(
                 Modifier.align(Alignment.CenterHorizontally).navigationBarsPadding().padding(bottom = 24.dp)
                     .clip(RoundedCornerShape(20.dp)).background(Color.White.copy(alpha = 0.16f))
@@ -234,26 +255,6 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
                 Icon(Icons.Filled.Visibility, null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(tr("{0} views", views.size), color = Color.White, fontWeight = FontWeight.SemiBold)
-            }
-            if (showViews) {
-                AlertDialog(
-                    onDismissRequest = { showViews = false },
-                    title = { Text(tr("Viewed by {0}", views.size)) },
-                    text = {
-                        Column {
-                            if (views.isEmpty()) Text(tr("No views yet"), color = Muted)
-                            views.forEach { u ->
-                                Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Avatar(Chat.nameOf(u), 32.dp)
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(Chat.nameOf(u), color = Ink)
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = { TextButton(onClick = { showViews = false }) { Text(tr("OK"), color = Accent) } },
-                    containerColor = BubbleThem,
-                )
             }
         } else {
             Row(
@@ -291,4 +292,59 @@ fun StatusViewer(owner: String, onDone: () -> Unit) {
             }
         }
     }
+    if (isMine && showViews) ViewersSheet(cur, views, onClose = { showViews = false }, onDelete = {
+        showViews = false
+        Chat.deleteMyStatus(cur)
+        if (index > 0 && index >= list.lastIndex) index--
+    })
+    }
+}
+
+/** WhatsApp laaga "Viewed by N" — kinda nunchi sheet */
+@Composable
+private fun ViewersSheet(st: StatusItem, views: List<Pair<String, Long>>, onClose: () -> Unit, onDelete: () -> Unit) {
+    val ctx = LocalContext.current
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable(onClick = onClose), contentAlignment = Alignment.BottomCenter) {
+        Column(
+            Modifier.fillMaxWidth().fillMaxHeight(0.62f).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(Bg).clickable(enabled = false) {},
+        ) {
+            Row(Modifier.fillMaxWidth().background(Accent).padding(start = 20.dp, end = 6.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(tr("Viewed by {0}", views.size), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, tr("Delete status"), tint = Color.White) }
+                IconButton(onClick = { shareStatus(ctx, st) }) { Icon(Icons.Filled.Share, tr("Share"), tint = Color.White) }
+            }
+            if (views.isEmpty()) Text(tr("No views yet"), color = Muted, modifier = Modifier.padding(24.dp))
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(views, key = { it.first }) { (u, ts) ->
+                    val n = Chat.nameOf(u)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(n, 44.dp)
+                        Spacer(Modifier.width(14.dp))
+                        Column {
+                            Text(n, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            if (ts > 0) Text(longTime(ts), color = Muted, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun shareStatus(ctx: android.content.Context, st: StatusItem) {
+    try {
+        val i = android.content.Intent(android.content.Intent.ACTION_SEND)
+        if (st.media.isNotEmpty()) {
+            val u = androidx.core.content.FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", File(st.media))
+            i.type = if (st.type == "video") "video/*" else "image/*"
+            i.putExtra(android.content.Intent.EXTRA_STREAM, u)
+            i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (st.text.isNotBlank()) i.putExtra(android.content.Intent.EXTRA_TEXT, st.text)
+        } else {
+            i.type = "text/plain"
+            i.putExtra(android.content.Intent.EXTRA_TEXT, st.text)
+        }
+        ctx.startActivity(android.content.Intent.createChooser(i, tr("Share")))
+    } catch (_: Exception) {}
 }

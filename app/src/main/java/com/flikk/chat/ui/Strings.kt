@@ -436,6 +436,13 @@ private fun te(): Map<String, String> = hashMapOf(
     "{0} votes" to "{0} ఓట్లు",
     "❤️ sent" to "❤️ పంపాం",
     "🔒 Encryption" to "🔒 ఎన్‌క్రిప్షన్",
+    "Add status" to "స్టేటస్ జోడించు",
+    "Text" to "టెక్స్ట్",
+    "Recents" to "ఇటీవలివి",
+    "Allow access to your photos and videos to see them here." to "మీ ఫోటోలు, వీడియోలు ఇక్కడ చూడటానికి అనుమతి ఇవ్వండి.",
+    "Allow access" to "అనుమతి ఇవ్వు",
+    "Add a caption…" to "క్యాప్షన్ జోడించండి…",
+    "Read all" to "అన్నీ చదివినట్టు",
 )
 
 private fun ta(): Map<String, String> = hashMapOf(
@@ -867,6 +874,13 @@ private fun ta(): Map<String, String> = hashMapOf(
     "{0} votes" to "{0} வாக்குகள்",
     "❤️ sent" to "❤️ அனுப்பப்பட்டது",
     "🔒 Encryption" to "🔒 குறியாக்கம்",
+    "Add status" to "ஸ்டேட்டஸ் சேர்",
+    "Text" to "உரை",
+    "Recents" to "சமீபத்தியவை",
+    "Allow access to your photos and videos to see them here." to "உங்கள் புகைப்படங்கள், வீடியோக்களை இங்கே பார்க்க அனுமதி தாருங்கள்.",
+    "Allow access" to "அனுமதி தா",
+    "Add a caption…" to "தலைப்பு சேர்க்கவும்…",
+    "Read all" to "அனைத்தும் படித்தது",
 )
 
 private fun hi(): Map<String, String> = hashMapOf(
@@ -1298,4 +1312,11 @@ private fun hi(): Map<String, String> = hashMapOf(
     "{0} votes" to "{0} वोट",
     "❤️ sent" to "❤️ भेजा",
     "🔒 Encryption" to "🔒 एन्क्रिप्शन",
+    "Add status" to "स्टेटस जोड़ें",
+    "Text" to "टेक्स्ट",
+    "Recents" to "हाल के",
+    "Allow access to your photos and videos to see them here." to "अपनी फ़ोटो और वीडियो यहाँ देखने के लिए अनुमति दें।",
+    "Allow access" to "अनुमति दें",
+    "Add a caption…" to "कैप्शन जोड़ें…",
+    "Read all" to "सब पढ़ा हुआ",
 )

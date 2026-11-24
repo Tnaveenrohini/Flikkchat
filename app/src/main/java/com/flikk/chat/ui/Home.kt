@@ -151,6 +151,7 @@ fun HomeScreen(
     openStarred: () -> Unit,
     openStatusText: () -> Unit,
     openStatusViewer: (String) -> Unit,
+    openAddStatus: () -> Unit,
     openCallPicker: (Boolean) -> Unit,
     openSearch: () -> Unit = {},
     openArchived: () -> Unit = {},
@@ -169,7 +170,7 @@ fun HomeScreen(
     Box(Modifier.fillMaxSize().background(Bg)) {
         when (tab) {
             0 -> ChatsTab(openChat, openContacts, openProfile, openNewGroup, openStarred, openSearch, openArchived, openLocked)
-            1 -> UpdatesTab(openStatusText, openStatusViewer)
+            1 -> UpdatesTab(openStatusText, openStatusViewer, openAddStatus)
             2 -> GroupsTab(openChat, openNewGroup)
             else -> CallsTab(openCallPicker, openContacts)
         }
@@ -298,6 +299,7 @@ private fun ChatsTab(
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text(tr("New group")) }, onClick = { menu = false; openNewGroup() })
                             DropdownMenuItem(text = { Text(tr("Starred messages")) }, onClick = { menu = false; openStarred() })
+                            DropdownMenuItem(text = { Text(tr("Read all")) }, onClick = { menu = false; Chat.markAllRead() })
                             DropdownMenuItem(text = { Text(tr("Settings")) }, onClick = { menu = false; openProfile() })
                         }
                     }
@@ -439,7 +441,7 @@ fun ChatRowItem(c: ChatRow, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
 // ================= Updates tab =================
 
 @Composable
-private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit) {
+private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit, openAdd: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val version by Chat.db.changes.collectAsState()
@@ -471,7 +473,7 @@ private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit) {
                     item {
                         Box(
                             Modifier.size(width = 96.dp, height = 150.dp).clip(RoundedCornerShape(20.dp)).background(Surface)
-                                .clickable { if (mine.isNotEmpty()) openViewer(me ?: "") else openText() },
+                                .clickable { if (mine.isNotEmpty()) openViewer(me ?: "") else openAdd() },
                         ) {
                             mine.lastOrNull()?.let { StatusCardBg(it) }
                             Box(Modifier.align(Alignment.TopCenter).padding(top = 14.dp)) {
@@ -532,17 +534,18 @@ private fun UpdatesTab(openText: () -> Unit, openViewer: (String) -> Unit) {
                 )
             }
         }
-        SquareFab(Icons.Filled.PhotoCamera, tr("Photo status"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp)) {
-            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        SquareFab(Icons.Filled.PhotoCamera, tr("Add status"), Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 20.dp, bottom = 104.dp)) {
+            openAdd()
         }
     }
 }
 
 @Composable
 private fun StatusCardBg(s: StatusItem) {
-    if (s.type == "image" && s.media.isNotEmpty()) {
+    if ((s.type == "image" || s.type == "video") && s.media.isNotEmpty()) {
         AsyncImage(model = File(s.media), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
+        if (s.type == "video") PlayBadge(Modifier.align(Alignment.Center))
     } else {
         Box(Modifier.fillMaxSize().background(Color(s.color.takeIf { it != 0L } ?: 0xFF3A2F6B)))
     }

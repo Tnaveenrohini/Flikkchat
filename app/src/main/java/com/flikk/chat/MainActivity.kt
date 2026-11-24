@@ -45,6 +45,8 @@ import com.flikk.chat.ui.StarredScreen
 import com.flikk.chat.ui.StatusViewer
 import com.flikk.chat.ui.StorageScreen
 import com.flikk.chat.ui.TextStatusScreen
+import com.flikk.chat.ui.AddStatusScreen
+import com.flikk.chat.ui.StatusPreviewScreen
 import com.flikk.chat.ui.WelcomeScreen
 import com.flikk.chat.ui.applyTheme
 import com.flikk.chat.ui.appLang
@@ -86,6 +88,8 @@ sealed class Screen {
     data class Forward(val msgId: String) : Screen()
     data class Viewer(val path: String) : Screen()
     data object StatusText : Screen()
+    data object AddStatus : Screen()
+    data class StatusPreview(val uri: android.net.Uri, val video: Boolean) : Screen()
     data class StatusView(val owner: String) : Screen()
     data class CallPick(val video: Boolean) : Screen()
     data object Search : Screen()
@@ -159,6 +163,7 @@ class MainActivity : FragmentActivity() {
                         openStarred = { push(Screen.Starred) },
                         openStatusText = { push(Screen.StatusText) },
                         openStatusViewer = { push(Screen.StatusView(it)) },
+                        openAddStatus = { push(Screen.AddStatus) },
                         openCallPicker = { push(Screen.CallPick(it)) },
                         openSearch = { push(Screen.Search) },
                         openArchived = { push(Screen.Archived) },
@@ -231,7 +236,14 @@ class MainActivity : FragmentActivity() {
                     is Screen.GroupSettings -> GroupSettingsScreen(current.gid, onBack = ::pop)
                     is Screen.Forward -> ForwardScreen(msgId = current.msgId, onDone = ::pop)
                     is Screen.Viewer -> ImageViewer(path = current.path, onBack = ::pop)
-                    Screen.StatusText -> TextStatusScreen(onDone = ::pop)
+                    Screen.StatusText -> TextStatusScreen(onDone = { stack = stack.filter { it != Screen.AddStatus && it != Screen.StatusText }.ifEmpty { listOf(Screen.Home) } })
+                    Screen.AddStatus -> AddStatusScreen(
+                        onClose = ::pop,
+                        openText = { replaceTop(Screen.StatusText) },
+                        openPreview = { u, v -> push(Screen.StatusPreview(u, v)) },
+                    )
+                    is Screen.StatusPreview -> StatusPreviewScreen(current.uri, current.video, onBack = ::pop,
+                        onPosted = { stack = stack.filter { it != Screen.AddStatus && it !is Screen.StatusPreview }.ifEmpty { listOf(Screen.Home) } })
                     is Screen.StatusView -> StatusViewer(owner = current.owner, onDone = ::pop)
                     is Screen.CallPick -> CallPickerScreen(video = current.video, onBack = ::pop)
                 }

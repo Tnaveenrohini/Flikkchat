@@ -418,13 +418,14 @@ class LocalDb(ctx: Context) : SQLiteOpenHelper(ctx, "flikkchat.db", null, 5) {
 
     /** Naa status chusina vaallu */
     fun addView(statusId: String, uid: String) {
-        writableDatabase.execSQL("INSERT OR IGNORE INTO rcpt(msg_id, uid, status) VALUES(?,?,4)", arrayOf<Any>(statusId, uid))
+        writableDatabase.execSQL("INSERT OR IGNORE INTO rcpt(msg_id, uid, status, ts) VALUES(?,?,4,?)", arrayOf<Any>(statusId, uid, System.currentTimeMillis()))
         bump()
     }
 
-    fun views(statusId: String): List<String> = readableDatabase.rawQuery(
-        "SELECT uid FROM rcpt WHERE msg_id=? AND status=4", arrayOf(statusId)
-    ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+    /** (uid, chusina time) — kotha vaallu mundu */
+    fun views(statusId: String): List<Pair<String, Long>> = readableDatabase.rawQuery(
+        "SELECT uid, ts FROM rcpt WHERE msg_id=? AND status=4 ORDER BY ts DESC", arrayOf(statusId)
+    ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0) to c.getLong(1)) } }
 
     // ---------- Call log ----------
 
