@@ -443,6 +443,9 @@ private fun te(): Map<String, String> = hashMapOf(
     "Allow access" to "అనుమతి ఇవ్వు",
     "Add a caption…" to "క్యాప్షన్ జోడించండి…",
     "Read all" to "అన్నీ చదివినట్టు",
+    "Repost" to "రీపోస్ట్",
+    "Ready to post" to "పోస్ట్ చేయడానికి సిద్ధం",
+    "Tap the mic to record (up to 30 seconds)" to "రికార్డ్ చేయడానికి మైక్ నొక్కండి (30 సెకన్ల వరకు)",
 )
 
 private fun ta(): Map<String, String> = hashMapOf(
@@ -881,6 +884,9 @@ private fun ta(): Map<String, String> = hashMapOf(
     "Allow access" to "அனுமதி தா",
     "Add a caption…" to "தலைப்பு சேர்க்கவும்…",
     "Read all" to "அனைத்தும் படித்தது",
+    "Repost" to "மீண்டும் பகிர்",
+    "Ready to post" to "பதிவிட தயார்",
+    "Tap the mic to record (up to 30 seconds)" to "பதிவு செய்ய மைக்கை தட்டவும் (30 விநாடிகள் வரை)",
 )
 
 private fun hi(): Map<String, String> = hashMapOf(
@@ -1319,4 +1325,7 @@ private fun hi(): Map<String, String> = hashMapOf(
     "Allow access" to "अनुमति दें",
     "Add a caption…" to "कैप्शन जोड़ें…",
     "Read all" to "सब पढ़ा हुआ",
+    "Repost" to "रीपोस्ट",
+    "Ready to post" to "पोस्ट के लिए तैयार",
+    "Tap the mic to record (up to 30 seconds)" to "रिकॉर्ड करने के लिए माइक दबाएं (30 सेकंड तक)",
 )

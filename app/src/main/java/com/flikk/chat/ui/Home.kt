@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhoneMissed
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Search
@@ -546,6 +547,10 @@ private fun StatusCardBg(s: StatusItem) {
         AsyncImage(model = File(s.media), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
         if (s.type == "video") Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { PlayBadge() }
+    } else if (s.type == "voice") {
+        Box(Modifier.fillMaxSize().background(Color(s.color.takeIf { it != 0L } ?: 0xFF3A2F6B)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.Mic, null, tint = Color.White, modifier = Modifier.size(30.dp))
+        }
     } else {
         Box(Modifier.fillMaxSize().background(Color(s.color.takeIf { it != 0L } ?: 0xFF3A2F6B)))
     }

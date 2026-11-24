@@ -376,6 +376,7 @@ object Chat {
         val quote = Msg(st.id, st.owner, false, when (st.type) {
             "image" -> "📷 Status" + (if (st.text.isNotBlank()) ": ${st.text}" else "")
             "video" -> "🎥 Status" + (if (st.text.isNotBlank()) ": ${st.text}" else "")
+            "voice" -> "🎤 Status"
             else -> "Status: ${st.text}"
         },
             st.ts, 0, st.owner)
@@ -725,7 +726,7 @@ object Chat {
         if (type == "status") {
             val ts = d.getLong("ts") ?: System.currentTimeMillis()
             if (System.currentTimeMillis() - ts < STATUS_TTL) {
-                db.insertStatus(StatusItem(id, from, if (mediaPath.isEmpty()) "text" else if (mime.startsWith("video")) "video" else "image", text,
+                db.insertStatus(StatusItem(id, from, if (mediaPath.isEmpty()) "text" else if (mime.startsWith("video")) "video" else if (mime.startsWith("audio")) "voice" else "image", text,
                     d.getLong("color") ?: 0L, mediaPath, ts, false))
             } else if (mediaPath.isNotEmpty()) File(mediaPath).delete()
             try { ref.delete().await() } catch (_: Exception) {}
@@ -946,6 +947,29 @@ object Chat {
             shareStatus(st, mime)
             null
         } catch (e: Exception) { "Could not post status" }
+    }
+
+    /** Voice status (recorder file) */
+    fun postVoiceStatus(file: File, color: Long) {
+        val uid = me ?: return
+        val st = StatusItem(UUID.randomUUID().toString(), uid, "voice", "", color, file.absolutePath, System.currentTimeMillis(), true)
+        db.insertStatus(st)
+        shareStatus(st, "audio/mp4")
+    }
+
+    /** Vere vaalla status ni naa status ga malli pettu */
+    suspend fun repostStatus(st: StatusItem): String? = withContext(Dispatchers.IO) {
+        when (st.type) {
+            "text" -> { postTextStatus(st.text, st.color); null }
+            "image" -> postPhotoStatus(Uri.fromFile(File(st.media)), st.text)
+            "video" -> postVideoStatus(Uri.fromFile(File(st.media)), st.text)
+            "voice" -> try {
+                val f = File(Media.dir(app), "${UUID.randomUUID()}.m4a")
+                File(st.media).copyTo(f)
+                postVoiceStatus(f, st.color); null
+            } catch (_: Exception) { "Could not post status" }
+            else -> null
+        }
     }
 
     private fun shareStatus(st: StatusItem, mime: String = if (st.media.isNotEmpty()) "image/jpeg" else "") {

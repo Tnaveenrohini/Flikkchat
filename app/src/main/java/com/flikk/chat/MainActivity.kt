@@ -46,6 +46,7 @@ import com.flikk.chat.ui.StatusViewer
 import com.flikk.chat.ui.StorageScreen
 import com.flikk.chat.ui.TextStatusScreen
 import com.flikk.chat.ui.AddStatusScreen
+import com.flikk.chat.ui.VoiceStatusScreen
 import com.flikk.chat.ui.StatusPreviewScreen
 import com.flikk.chat.ui.WelcomeScreen
 import com.flikk.chat.ui.applyTheme
@@ -89,6 +90,7 @@ sealed class Screen {
     data class Viewer(val path: String) : Screen()
     data object StatusText : Screen()
     data object AddStatus : Screen()
+    data object VoiceStatus : Screen()
     data class StatusPreview(val uri: android.net.Uri, val video: Boolean) : Screen()
     data class StatusView(val owner: String) : Screen()
     data class CallPick(val video: Boolean) : Screen()
@@ -240,8 +242,10 @@ class MainActivity : FragmentActivity() {
                     Screen.AddStatus -> AddStatusScreen(
                         onClose = ::pop,
                         openText = { replaceTop(Screen.StatusText) },
+                        openVoice = { replaceTop(Screen.VoiceStatus) },
                         openPreview = { u, v -> push(Screen.StatusPreview(u, v)) },
                     )
+                    Screen.VoiceStatus -> VoiceStatusScreen(onDone = ::pop)
                     is Screen.StatusPreview -> StatusPreviewScreen(current.uri, current.video, onBack = ::pop,
                         onPosted = { stack = stack.filter { it != Screen.AddStatus && it !is Screen.StatusPreview }.ifEmpty { listOf(Screen.Home) } })
                     is Screen.StatusView -> StatusViewer(owner = current.owner, onDone = ::pop)

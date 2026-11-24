@@ -41,11 +41,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.foundation.border
+import androidx.compose.runtime.DisposableEffect
+import kotlinx.coroutines.delay
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -119,10 +128,12 @@ private fun recentMedia(ctx: Context): List<GalleryItem> = try {
 // ---------------- Add status ----------------
 
 @Composable
-fun AddStatusScreen(onClose: () -> Unit, openText: () -> Unit, openPreview: (Uri, Boolean) -> Unit) {
+fun AddStatusScreen(onClose: () -> Unit, openText: () -> Unit, openVoice: () -> Unit, openPreview: (Uri, Boolean) -> Unit) {
     val ctx = LocalContext.current
     var granted by remember { mutableStateOf(hasGallery(ctx)) }
     var reload by remember { mutableIntStateOf(0) }
+    var filter by remember { mutableIntStateOf(0) } // 0 all, 1 photos, 2 videos
+    var filterMenu by remember { mutableStateOf(false) }
     val items by produceState(initialValue = emptyList<GalleryItem>(), granted, reload) {
         value = if (granted) withContext(Dispatchers.IO) { recentMedia(ctx) } else emptyList()
     }
@@ -170,14 +181,23 @@ fun AddStatusScreen(onClose: () -> Unit, openText: () -> Unit, openPreview: (Uri
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 18.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
             StatusOption(Icons.Filled.Edit, tr("Text")) { openText() }
-            StatusOption(Icons.Filled.PhotoCamera, tr("Photo")) { wantVideo = false; camPerm.launch(Manifest.permission.CAMERA) }
             StatusOption(Icons.Filled.Videocam, tr("Video")) { wantVideo = true; camPerm.launch(Manifest.permission.CAMERA) }
             StatusOption(Icons.Filled.PhotoLibrary, tr("Gallery")) {
                 picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
             }
+            StatusOption(Icons.Filled.Mic, tr("Voice")) { openVoice() }
         }
-        Text(tr("Recents"), color = Color.White.copy(alpha = 0.75f), fontSize = 17.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 20.dp, bottom = 10.dp))
+        val filterNames = listOf(tr("Recents"), tr("Photos"), tr("Videos"))
+        Box(Modifier.padding(start = 16.dp, bottom = 10.dp)) {
+            Row(Modifier.clip(RoundedCornerShape(10.dp)).clickable { filterMenu = true }.padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(filterNames[filter], color = Color.White.copy(alpha = 0.75f), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Filled.ArrowDropDown, null, tint = Color.White.copy(alpha = 0.75f))
+            }
+            DropdownMenu(expanded = filterMenu, onDismissRequest = { filterMenu = false }) {
+                filterNames.forEachIndexed { i, n -> DropdownMenuItem(text = { Text(n) }, onClick = { filter = i; filterMenu = false }) }
+            }
+        }
         if (!granted) {
             Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(tr("Allow access to your photos and videos to see them here."), color = NavMuted, fontSize = 14.sp,
@@ -193,10 +213,19 @@ fun AddStatusScreen(onClose: () -> Unit, openText: () -> Unit, openPreview: (Uri
                 contentPadding = PaddingValues(bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                if (items.isEmpty()) item(span = { GridItemSpan(3) }) {
-                    Text(tr("No photos or videos yet"), color = NavMuted, modifier = Modifier.padding(28.dp))
+                item(key = "camera") {
+                    Column(
+                        Modifier.aspectRatio(1f).background(Color(0xFF181A22)).border(1.dp, Color.White.copy(alpha = 0.12f))
+                            .clickable { wantVideo = false; camPerm.launch(Manifest.permission.CAMERA) },
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(Icons.Outlined.PhotoCamera, tr("Camera"), tint = Color(0xFF25D366), modifier = Modifier.size(40.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text(tr("Camera"), color = Color.White.copy(alpha = 0.75f), fontSize = 17.sp)
+                    }
                 }
-                items(items, key = { it.uri.toString() }) { g ->
+                val shown = when (filter) { 1 -> items.filter { !it.video }; 2 -> items.filter { it.video }; else -> items }
+                items(shown, key = { it.uri.toString() }) { g ->
                     Box(Modifier.aspectRatio(1f).background(Color(0xFF22252F)).clickable { openPreview(g.uri, g.video) }) {
                         AsyncImage(model = g.uri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                         if (g.video) Icon(Icons.Filled.Videocam, tr("Video"), tint = Color.White,
@@ -310,5 +339,88 @@ fun StatusVideo(
 fun PlayBadge(modifier: Modifier = Modifier) {
     Box(modifier.size(34.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
         Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(22.dp))
+    }
+}
+
+// ---------------- Voice status ----------------
+
+@Composable
+fun VoiceStatusScreen(onDone: () -> Unit) {
+    val ctx = LocalContext.current
+    val rec = remember { com.flikk.chat.data.VoiceRecorder(ctx) }
+    var ci by remember { mutableIntStateOf(0) }
+    var recording by remember { mutableStateOf(false) }
+    var elapsed by remember { mutableStateOf(0L) }
+    var result by remember { mutableStateOf<Pair<File, Long>?>(null) }
+    val maxMs = 30_000L
+    val bg = Color(StatusColors[ci])
+    DisposableEffect(Unit) { onDispose { if (rec.isRecording) rec.cancel() } }
+    fun stop() {
+        recording = false
+        result = rec.stop()
+        if (result == null) Toast.makeText(ctx, tr("Recording too short"), Toast.LENGTH_SHORT).show()
+    }
+    LaunchedEffect(recording) {
+        val t0 = System.currentTimeMillis()
+        while (recording) {
+            elapsed = System.currentTimeMillis() - t0
+            if (elapsed >= maxMs) stop()
+            delay(100)
+        }
+    }
+    val mic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (!ok) Toast.makeText(ctx, tr("Microphone permission needed for voice messages"), Toast.LENGTH_SHORT).show()
+        else if (rec.start(UUID.randomUUID().toString())) { result = null; elapsed = 0; recording = true }
+        else Toast.makeText(ctx, tr("Could not start recording"), Toast.LENGTH_SHORT).show()
+    }
+    Column(Modifier.fillMaxSize().background(bg)) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { result?.first?.delete(); onDone() }) { Icon(Icons.Filled.Close, tr("Close"), tint = Color.White) }
+            Spacer(Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(end = 8.dp)) {
+                StatusColors.forEachIndexed { i, c ->
+                    Box(Modifier.size(24.dp).border(2.dp, if (i == ci) Color.White else Color.White.copy(alpha = 0.3f), CircleShape)
+                        .padding(3.dp).clip(CircleShape).background(Color(c)).clickable { ci = i })
+                }
+            }
+        }
+        Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            val shown = result?.second ?: elapsed
+            Text("%d:%02d".format(shown / 60000, (shown / 1000) % 60), color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                when { recording -> tr("Recording..."); result != null -> tr("Ready to post"); else -> tr("Tap the mic to record (up to 30 seconds)") },
+                color = Color.White.copy(alpha = 0.8f), fontSize = 15.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 30.dp),
+            )
+            Spacer(Modifier.height(36.dp))
+            Box(
+                Modifier.size(110.dp).clip(CircleShape).background(if (recording) Color(0xFFE5484D) else Color.White.copy(alpha = 0.22f))
+                    .clickable {
+                        if (recording) stop()
+                        else { result?.first?.delete(); result = null; mic.launch(Manifest.permission.RECORD_AUDIO) }
+                    },
+                contentAlignment = Alignment.Center,
+            ) { Icon(if (recording) Icons.Filled.Stop else Icons.Filled.Mic, tr("Record voice message"), tint = Color.White, modifier = Modifier.size(52.dp)) }
+        }
+        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (result != null) IconButton(onClick = { result?.first?.delete(); result = null; elapsed = 0 }) {
+                Icon(Icons.Filled.Delete, tr("Delete"), tint = Color.White)
+            }
+            Spacer(Modifier.weight(1f))
+            val r = result
+            Box(
+                Modifier.size(56.dp).clip(CircleShape).background(if (r == null) Color.White.copy(alpha = 0.4f) else Color.White)
+                    .clickable(enabled = r != null) {
+                        if (r != null) {
+                            Chat.postVoiceStatus(r.first, StatusColors[ci])
+                            Toast.makeText(ctx, tr("Status posted ✅"), Toast.LENGTH_SHORT).show()
+                            result = null
+                            onDone()
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.AutoMirrored.Filled.Send, tr("Post"), tint = bg) }
+        }
     }
 }
